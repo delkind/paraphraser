@@ -1,11 +1,13 @@
 import codecs
 import csv
+import random
 import re
 from abc import abstractmethod, ABCMeta
-from itertools import groupby
+import numpy as np
+
+import keras
 from keras.utils.data_utils import get_file
 from collections import Counter
-import matplotlib
 
 MIN_FREQ = 15
 URL_ROOT = "https://raw.githubusercontent.com/scrollmapper/bible_databases/master/csv/t_"
@@ -36,26 +38,21 @@ class Dataset(metaclass=ABCMeta):
         self.frequencies = {}
 
     def create_mapping(self, corpora):
-        segs = [seg for corpus in corpora for sentence in corpus for seg in sentence]
+        segs = [seg for corpus in corpora.values() for sentence in corpus for seg in sentence]
         frequencies = Counter(segs).items()
         oov = [c for (_, c) in frequencies if c <= MIN_FREQ]
         self.frequencies = {k: l for (k, l) in frequencies if l > MIN_FREQ or k == OOV}
         self.frequencies[OOV] = sum(oov)
         self.mapping = {seg: num for (num, seg) in enumerate(self.frequencies.keys())}
+        markers = ['start', 'end'] + list(corpora.keys())
+        for m in markers:
+            self.mapping['<{}>'.format(m)] = len(self.mapping)
 
     def tokenize(self, corpora):
-        self.create_mapping(corpora.values())
+        self.create_mapping(corpora)
         oov = self.mapping[OOV]
         return {key: [[self.mapping.get(seg, oov) for seg in sentence] for sentence in corpus]
                 for (key, corpus) in corpora.items()}
-
-    @abstractmethod
-    def gen_sentences(self):
-        pass
-
-    @abstractmethod
-    def gen_parallel_sentences(self):
-        pass
 
     @staticmethod
     def normalize(sentence):
@@ -69,7 +66,8 @@ class BibleDataset(Dataset):
     def __init__(self, base_url, files, suffix):
         super().__init__()
         self.tokenized_corpora = self.tokenize(BibleDataset.parse_csv(base_url, files, suffix))
-        self.max_sentence_lengths = [len(s) for c in self.tokenized_corpora.values() for s in c]
+        sentence_lengths = [len(s) for c in self.tokenized_corpora.values() for s in c]
+        self.max_sentence_length = max(sentence_lengths)
 
     @staticmethod
     def parse_csv(base_url, files, suffix):
@@ -90,15 +88,41 @@ class BibleDataset(Dataset):
 
         return {file: [corpus[key] for key in intersection] for (file, corpus) in corpora.items()}
 
-    def gen_sentences(self):
-        for corpus in self.tokenized_corpora.values():
-            for sentence in corpus:
-                yield sentence
+    def pad_sentence(self, sentence, length):
+        return sentence + [self.mapping['<end>']] * (length - len(sentence))
 
-    def gen_parallel_sentences(self):
-        for corpus in self.tokenized_corpora.values():
-            for sentence in corpus:
-                yield sentence
+    def sample_batch(self, batch_size):
+        style_names = list(self.tokenized_corpora.keys())
+        styles = random.choices(range(len(self.tokenized_corpora)), k=batch_size)
+        sample = zip(styles, random.sample(range(len(list(self.tokenized_corpora.values())[0])), batch_size))
+        return [self.pad_sentence(self.tokenized_corpora[style_names[corp]][sent], self.max_sentence_length)
+                for corp, sent in sample], styles
+
+    def enc_input(self, batch):
+        return np.array([s + [self.mapping['<end>']] for s in batch], int)
+
+    def dec_input(self, batch):
+        return np.array([[self.mapping['<start>']] + s for s in batch], int)
+
+    def gen_autoenc(self, batch_size=64, vocab_size=10000):
+        while True:
+            batch, _ = self.sample_batch(batch_size)
+            dec_input = self.dec_input(batch)
+
+            yield self.enc_input(batch), dec_input, keras.utils.to_categorical(dec_input, len(self.mapping)).astype(int)
+
+    def gen_adversarial(self, batch_size=64, vocab_size=10000):
+        while True:
+            batch, styles = self.sample_batch(batch_size=batch_size)
+            yield self.enc_input(batch), keras.utils.to_categorical(styles, len(self.tokenized_corpora)).astype(int)
+
+    def gen_complete(self, batch_size=64, vocab_size=10000):
+        while True:
+            batch, styles = self.sample_batch(batch_size=batch_size)
+            dec_input = self.dec_input(batch)
+            yield self.enc_input(batch), dec_input, \
+                  keras.utils.to_categorical(dec_input, len(self.mapping)).astype(int), \
+                  keras.utils.to_categorical(styles, len(self.tokenized_corpora)).astype(int)
 
     @staticmethod
     def normalize(sentence):
@@ -117,4 +141,5 @@ class BibleDataset(Dataset):
 
 if __name__ == '__main__':
     c = BibleDataset(URL_ROOT, ["asv", "bbe", "dby", "kjv", "wbt", "web", "ylt"], CSV_EXT)
-    pass
+
+    c.gen_complete()
