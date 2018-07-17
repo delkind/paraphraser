@@ -164,8 +164,8 @@ class BibleDataset(Dataset):
         while True:
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-
-            yield [self.enc_input(batch), dec_input], to_categorical(dec_input, len(self.word2index)).astype(int)
+            enc_input = self.enc_input(batch)
+            yield [enc_input, dec_input], to_categorical(dec_input, len(self.word2index)).astype(int)
 
     def gen_d(self, data_range, batch_size=64):
         cluster, data = self.__generate_data__(data_range)
@@ -225,6 +225,13 @@ def test_bible_dataset():
         for _ in range(2):
             [x1, x2], [y1, y2] = next(g_adv)
             # print (x1.shape)
+    g_adv = dataset.gen_adv(dataset.val, 64)
+    [x1, x2], [y1, y2] = next(g_adv)
+    print(x1[0][:10])
+    print(x2[0][:10])
+    print(np.argmax(y1[0][:10], axis=1))
+    assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
+    print(y2[0][:10])
 
 
 if __name__ == '__main__':
