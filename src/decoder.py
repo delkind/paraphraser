@@ -1,8 +1,8 @@
 from termcolor import colored
 import numpy as np
+from ..dataset.bible import END_SYMBOL
 
 
-END_SYMBOL = '<end>'
 
 class SamplingDecoder():
     """
@@ -10,7 +10,7 @@ class SamplingDecoder():
       It will be used to sample results(currently greedy)
     """
 
-    def __init__(self, model_g_d):
+    def __init__(self, model_g_d, END_SYMBOL = '<end>'):
         self.model_g_d = model_g_d
 
     # TODO: now it's greedy and use argmax
@@ -123,7 +123,7 @@ class SamplingDecoder():
                     else:
                         # print (one_x)
                         max_decoder_seq_length = dataset.max_sentence_length + 1  # always pad one
-                        p = self.decode_sequence(one_x, dataset.word2index[replaced_style], max_decoder_seq_length,dataset.word2index[END_SYMBOL], verbose=False)
+                        p = self.decode_sequence(one_x, dataset.word2index[replaced_style], max_decoder_seq_length,dataset.word2index[dataset.end_symbol() ], verbose=False)
                         print(f'decoder sample [{replaced_style}]:', dataset.recostruct_sentence(p))
 
                     print(f'gold label     [{replaced_style}]:', dataset.recostruct_sentence(gold_label))

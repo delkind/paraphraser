@@ -2,31 +2,7 @@ from keras.models import Model
 from keras.layers import Input, LSTM, Dense, Embedding,CuDNNLSTM,Bidirectional,Concatenate,Dropout
 from keras import backend as K
 
-num_encoder_tokens=1000
-num_decoder_tokens=1000
-embedding_dim = 300  # 100-300 good numbers
 
-# for hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
-# increasing should increase fit to train (and when using stronger reguralization/dropout even val)
-latent_dim = 256
-
-bidi_encoder = False
-
-cuddlstm = True
-
-# LSTM dropouts, one of the best ways to fight overfiltting. ragnge 0-0.5++ (0 means no dropout)
-# Increase it to reduce diff between train and val
-en_lstm_dropout = 0.3
-en_lstm_recurent_dropout = 0.3  # only relevant if NOT cuddlstm.
-de_lstm_dropout = 0.0  # only relevant if NOT cuddlstm.
-de_lstm_recurent_dropout = 0.0  # only relevant if NOT cuddlstm
-
-batch_size = 64
-
-# how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
-# 1.0 - 100.0 means same. 10.0 means ten time more, etc
-adv_loss_weight = 1.0
-style_out_size =2
 
 class D_G_Model:
     """
@@ -44,7 +20,41 @@ class D_G_Model:
     We will freeze the discriminator weights, and train the encoder-decoder similiarly to (1) with extra objective.
     That the loss from the discriminator will be Maximized.
     """
-    def __init__(self):
+    def __init__(self,num_encoder_tokens,
+                      num_decoder_tokens,  #from dataset 3628
+                      style_out_size, #from dataset 2
+                      cuddlstm,
+                      embedding_dim = 300,  # 100-300 good numbers
+                      # for hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
+                      # increasing should increase fit to train (and when using stronger reguralization/dropout even val)
+                      latent_dim = 256,
+                      bidi_encoder = False,
+                      # LSTM dropouts, one of the best ways to fight overfiltting. ragnge 0-0.5++ (0 means no dropout)
+                      # Increase it to reduce diff between train and val
+                      en_lstm_dropout = 0.3,
+                      en_lstm_recurrent_dropout = 0.3,  # only relevant if NOT cuddlstm.
+                      de_lstm_dropout = 0.0,  # only relevant if NOT cuddlstm.
+                      de_lstm_recurent_dropout = 0.0,  # only relevant if NOT cuddlstm
+                      # how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
+                      # 1.0 - 100.0 means same. 10.0 means ten time more, etc
+                      adv_loss_weight = 1.0,
+                      ):
+
+        self.num_encoder_tokens =num_encoder_tokens
+        self.num_decoder_tokens=num_decoder_tokens
+        self.embedding_dim=embedding_dim
+        self.latent_dim = latent_dim
+        self.bidi_encoder = bidi_encoder
+        self.cuddlstm = cuddlstm
+        self.en_lstm_dropout = en_lstm_dropout
+        self.en_lstm_recurrent_dropout = en_lstm_recurrent_dropout
+        self.de_lstm_dropout=de_lstm_dropout
+        self.de_lstm_recurent_dropout= de_lstm_recurent_dropout
+        self.adv_loss_weight = adv_loss_weight
+        self.style_out_size = style_out_size
+
+
+
         self.decoder_latent_dim = latent_dim* 2 if bidi_encoder else latent_dim
         self.shared_embedding = Embedding(num_encoder_tokens,
                                           embedding_dim,
@@ -56,15 +66,15 @@ class D_G_Model:
     def build_encoder_model(self, encoder_inputs):
         # Dropout(noise_shape=(batch_size, 1, features))
         x = self.shared_embedding(encoder_inputs)
-        if (cuddlstm):
-            encoder_lstm = CuDNNLSTM(latent_dim, return_state=True)
+        if (self.cuddlstm):
+            encoder_lstm = CuDNNLSTM(self.latent_dim, return_state=True)
         else:
             print('using LSTM with dropout!')
             # need to tune the dropout values (maybe fast.ai tips) , just invented those value
             # see dropout disucssion: https://github.com/keras-team/keras/issues/7290. iliaschalkidis
-            encoder_lstm = LSTM(latent_dim, return_state=True, dropout=en_lstm_dropout,
-                                recurrent_dropout=en_lstm_recurent_dropout, name='rnn_encoder')
-        if (bidi_encoder):
+            encoder_lstm = LSTM(self.latent_dim, return_state=True, dropout=self.en_lstm_dropout,
+                                recurrent_dropout=self.en_lstm_recurrent_dropout, name='rnn_encoder')
+        if (self.bidi_encoder):
             encoder_lstm = Bidirectional(encoder_lstm, merge_mode='concat', name='rnn_encoder')
             x, forward_h, forward_c, backward_h, backward_c = encoder_lstm(x)  # output,h1,c1,h2,c2
             state_h = Concatenate()([forward_h, backward_h])
@@ -86,16 +96,16 @@ class D_G_Model:
         # decoder_inputs = Input(shape=(None,),name='decoder_inputs')
 
         # bi-di pass merge of h1+h2, c1+c2
-        if (cuddlstm):
+        if (self.cuddlstm):
             decoder_lstm = CuDNNLSTM(self.decoder_latent_dim, return_sequences=True, return_state=True,
                                      name='rnn_decoder')  # returned state used in inference
         else:
             decoder_lstm = LSTM(self.decoder_latent_dim, return_sequences=True, return_state=True,
-                                dropout=de_lstm_dropout, recurrent_dropout=de_lstm_recurent_dropout, name='rnn_decoder')
+                                dropout=self.de_lstm_dropout, recurrent_dropout=self.de_lstm_recurent_dropout, name='rnn_decoder')
         # decoder_outputs, _, _  = decoder_lstm(self.hared_embedding(decoder_inputs), initial_state=encoder_states)
         decoder_outputs, _, _ = decoder_lstm(self.shared_embedding(decoder_inputs),
                                              initial_state=encoder_model(encoder_inputs))
-        decoder_dense = Dense(num_decoder_tokens, activation='softmax', name='decoder_softmax')
+        decoder_dense = Dense(self.num_decoder_tokens, activation='softmax', name='decoder_softmax')
         decoder_outputs = decoder_dense(decoder_outputs)
 
         # Define the model that will turn
@@ -147,7 +157,7 @@ class D_G_Model:
         d__a = Dense(100, activation='relu', name='d__dense1')(
             d__a)  # a = keras.layers.LeakyReLU()(a) #LeakyReLU  #why leaky? see: how to train your GAN - BUT IT FAILED TO LEARN (accuracy always 0.5)
         d__a = Dropout(0.1, name='d__dropout2')(d__a)
-        d__style_outputs = Dense(style_out_size, activation='softmax', name='d__dense_softmax')(d__a)
+        d__style_outputs = Dense(self.style_out_size, activation='softmax', name='d__dense_softmax')(d__a)
 
         # d = Model(d_inputs,style_outputs)
         # d = Model(d__encoder_inputs,d__style_outputs)  #style_outputs : batch , one-hot-encoding-of-style
@@ -192,7 +202,7 @@ class D_G_Model:
 
         adv_model.compile(optimizer='adam',
                           loss=['categorical_crossentropy', inverse_categorical_crossentropy],
-                          loss_weights=[1, adv_loss_weight])
+                          loss_weights=[1, self.adv_loss_weight])
 
         self.encoder_model = encoder_model
         self.decoder_sampling_model = decoder_sampling_model
@@ -206,5 +216,5 @@ class D_G_Model:
     def get_model_names(self):
         return ['encoder_model', 'decoder_sampling_model', 'd', 'g', 'g_d']
 
-# train_g(model,10) # TRAINING WELL!
-# train_d(d,50)
+
+

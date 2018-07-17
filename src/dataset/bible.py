@@ -9,6 +9,7 @@ from keras.utils.data_utils import get_file
 from keras.utils import to_categorical
 from itertools import product
 
+
 END_SYMBOL = '<end>'
 START_SYMBOL = '<start>'
 # SPEC_CHARS_REPLACEMENT = {'.': ' <DOT> ', ',': ' <COMMA> ', ';': ' <SEMICOLON> ', ':': ' <COLON> ', '!': ' <EXCL> ',
@@ -148,6 +149,9 @@ class BibleDataset(Dataset):
         sample = random.sample(data, k=batch_size)
         return [self.pad_sentence(self.corpora[self.index2style[style]][sent], max_len)
                 for style, sent in sample], [style for style, _ in sample]
+
+    def end_symbol(self):
+        return END_SYMBOL
 
     def enc_input(self, batch):
         return np.array([s + [self.word2index['<end>']] for s in batch], int)
