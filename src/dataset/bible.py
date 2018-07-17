@@ -215,8 +215,17 @@ def test_bible_dataset():
     dataset = BibleDataset(URL_ROOT, ["bbe", "ylt"], CSV_EXT)
     x = dataset.gen_adv(dataset.train)
     next(x)
-    pass
 
+
+    print('vocab', len(dataset.word2index))
+
+    [x1, x2], [y1, y2] = next(dataset.gen_adv(dataset.train, 2))
+    print(x1.shape, x2.shape, y1.shape, y2.shape)
+    for i in range(len(x1)):
+        print(x1[i][:10])
+        print(x2[i][:10])
+        print('dec_label', np.argmax(y1[i][:10], axis=1))
+        print(y2[i][:10])
 
 if __name__ == '__main__':
     test_bible_dataset()
