@@ -200,11 +200,11 @@ class D_G_Model:
         self.g = model
         self.g_d = adv_model
 
-        def get_models(self):
-            return [self.encoder_model, self.decoder_sampling_model, self.d, self.g, self.g_d]
+    def get_models(self):
+        return [self.encoder_model, self.decoder_sampling_model, self.d, self.g, self.g_d]
 
-        def get_model_names(self):
-            return ['encoder_model', 'decoder_sampling_model', 'd', 'g', 'g_d']
+    def get_model_names(self):
+        return ['encoder_model', 'decoder_sampling_model', 'd', 'g', 'g_d']
 
 # train_g(model,10) # TRAINING WELL!
 # train_d(d,50)
