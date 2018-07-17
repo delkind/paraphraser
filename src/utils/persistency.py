@@ -45,7 +45,7 @@ class Persistency():
         if not os.path.exists(self.models_base_dir):
             os.makedirs(self.models_base_dir)
 
-    def save_weights(self, models, model_names, save_to_gdrive=True):
+    def save_weights(self, models, model_names, save_to_gdrive=False):
 
         # keras can save model architecture + weights + opt_state using model.save
         # It can also sepately save weights and architecture as json

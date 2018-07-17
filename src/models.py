@@ -26,9 +26,24 @@ batch_size = 64
 # how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
 # 1.0 - 100.0 means same. 10.0 means ten time more, etc
 adv_loss_weight = 1.0
-style_out_size =2 
+style_out_size =2
 
 class D_G_Model:
+    """
+    # Model defintion
+    (1) We start with regular seq2seq is encoder->embedding->decoder and trained with reconstruction-loss
+
+    (2)We can build style-discriminator where the target is to classify author-style from the sentence-embedding.
+    When training it you need to freeze the encoder and decoder parts of the model, then:
+    input1: sentence --freezed encoder--> embedding    (no need to run decoder)
+    input2: style (one-hot)
+    output: style (one-hot)
+    The discriminator can be a simple classifier (dense-based) with simple minimize cross-entropy target.
+
+    (3) The smart-part: We want to train the encoder to create an embedding which will fool the discriminator.
+    We will freeze the discriminator weights, and train the encoder-decoder similiarly to (1) with extra objective.
+    That the loss from the discriminator will be Maximized.
+    """
     def __init__(self):
         self.decoder_latent_dim = latent_dim* 2 if bidi_encoder else latent_dim
         self.shared_embedding = Embedding(num_encoder_tokens,
@@ -185,10 +200,10 @@ class D_G_Model:
         self.g = model
         self.g_d = adv_model
 
-        def get_models():
+        def get_models(self):
             return [self.encoder_model, self.decoder_sampling_model, self.d, self.g, self.g_d]
 
-        def get_model_names():
+        def get_model_names(self):
             return ['encoder_model', 'decoder_sampling_model', 'd', 'g', 'g_d']
 
 # train_g(model,10) # TRAINING WELL!
