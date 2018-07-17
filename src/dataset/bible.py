@@ -70,7 +70,7 @@ class Dataset:
 
 
 class BibleDataset(Dataset):
-    def __init__(self, base_url, files, suffix, test_split=0.1, validation_split=0.1):
+    def __init__(self, files, base_url=URL_ROOT, suffix=CSV_EXT, test_split=0.1, validation_split=0.1):
         super().__init__()
         corpora, index = BibleDataset.parse_csv(base_url, files, suffix)
         self.corpora = self.index(corpora)
