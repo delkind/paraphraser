@@ -146,7 +146,7 @@ class BibleDataset(Dataset):
         return ' '.join([self.index2word[seg] for seg in sentence])
 
     def sample_batch(self, data, batch_size, max_len):
-        sample = random.sample(data, k=batch_size)
+        sample = random.sample(data, k=min(batch_size, len(data)))
         return [self.pad_sentence(self.corpora[self.index2style[style]][sent], max_len)
                 for style, sent in sample], [style for style, _ in sample]
 
@@ -216,20 +216,16 @@ class BibleDataset(Dataset):
 
 def test_bible_dataset():
     # dataset = BibleDataset(URL_ROOT, ["asv", "bbe", "dby", "kjv", "wbt", "web", "ylt"], CSV_EXT)
-    dataset = BibleDataset(URL_ROOT, ["bbe", "ylt"], CSV_EXT)
-    x = dataset.gen_adv(dataset.train)
-    next(x)
+    dataset = BibleDataset(["bbe", "ylt"])
 
+    for i in range(500):
+        if i % 10 == 0: print(i)
+        # WORKS ON TRAIN g_adv = dataset.gen_adv(dataset.train, batch_size)
+        g_adv = dataset.gen_adv(dataset.val, 64)
+        for _ in range(2):
+            [x1, x2], [y1, y2] = next(g_adv)
+            # print (x1.shape)
 
-    print('vocab', len(dataset.word2index))
-
-    [x1, x2], [y1, y2] = next(dataset.gen_adv(dataset.train, 2))
-    print(x1.shape, x2.shape, y1.shape, y2.shape)
-    for i in range(len(x1)):
-        print(x1[i][:10])
-        print(x2[i][:10])
-        print('dec_label', np.argmax(y1[i][:10], axis=1))
-        print(y2[i][:10])
 
 if __name__ == '__main__':
     test_bible_dataset()

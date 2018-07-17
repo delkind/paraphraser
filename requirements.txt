@@ -1,3 +1,7 @@
+termcolor
+google
+pydrive
+oauth2client
 spacy
 numpy
 matplotlib
