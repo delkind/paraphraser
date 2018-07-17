@@ -1,7 +1,5 @@
 from termcolor import colored
 import numpy as np
-from ..dataset.bible import END_SYMBOL
-
 
 
 class SamplingDecoder():
