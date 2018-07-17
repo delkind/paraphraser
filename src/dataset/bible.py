@@ -165,7 +165,7 @@ class BibleDataset(Dataset):
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
             enc_input = self.enc_input(batch)
-            yield [enc_input, dec_input], to_categorical(dec_input, len(self.word2index)).astype(int)
+            yield [enc_input, dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
 
     def gen_d(self, data_range, batch_size=64):
         cluster, data = self.__generate_data__(data_range)
@@ -216,22 +216,24 @@ class BibleDataset(Dataset):
 
 def test_bible_dataset():
     # dataset = BibleDataset(URL_ROOT, ["asv", "bbe", "dby", "kjv", "wbt", "web", "ylt"], CSV_EXT)
+    print ('loading dataset')
     dataset = BibleDataset(["bbe", "ylt"])
 
-    for i in range(500):
-        if i % 10 == 0: print(i)
+    for i in range(1):
         # WORKS ON TRAIN g_adv = dataset.gen_adv(dataset.train, batch_size)
         g_adv = dataset.gen_adv(dataset.val, 64)
-        for _ in range(2):
-            [x1, x2], [y1, y2] = next(g_adv)
-            # print (x1.shape)
-    g_adv = dataset.gen_adv(dataset.val, 64)
-    [x1, x2], [y1, y2] = next(g_adv)
-    print(x1[0][:10])
-    print(x2[0][:10])
-    print(np.argmax(y1[0][:10], axis=1))
+        print('staring to create 100 batches. if it is slow, try to imporve the code!')
+        for _ in range(100):
+            next(g_adv)
+        print ('end of creating 100 batches')
+
+    print(dataset.style2index)
+    print(list(dataset.word2index.items())[-6:])
+    [x1, x2], [y1, y2] = next(dataset.gen_adv(dataset.val, 64))
     assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
-    print(y2[0][:10])
+
+    [x1, x2], y1 = next(dataset.gen_g(dataset.val, 64))
+    assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
 
 
 if __name__ == '__main__':
