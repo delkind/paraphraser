@@ -76,7 +76,7 @@ class Dataset:
 class BibleDataset(Dataset):
     def __init__(self, files, base_url=URL_ROOT, suffix=CSV_EXT, test_split=0.1, validation_split=0.1):
         super().__init__()
-        corpora, index = BibleDataset.parse_csv(base_url, files, suffix)
+        corpora, index = self.parse_csv(base_url, files, suffix)
         self.corpora = self.index(corpora)
         self.train, self.val, self.test = self.split(index, test_split, validation_split)
         sentence_lengths = [len(s) for c in self.corpora.values() for s in c]
@@ -86,8 +86,7 @@ class BibleDataset(Dataset):
         self.clusters = self.cluster(10)
         pass
 
-    @staticmethod
-    def parse_csv(base_url, files, suffix):
+    def parse_csv(self, base_url, files, suffix):
         tokenizer = English().Defaults.create_tokenizer()
         corpora = {}
         for file in files:
@@ -95,7 +94,7 @@ class BibleDataset(Dataset):
             with open(get_file(file, base_url + file + suffix, cache_dir='/tmp/bible.cache/'), "rb") as webfile:
                 for idx, row in enumerate(csv.reader(codecs.iterdecode(webfile, 'utf-8'))):
                     if idx > 0:
-                        segs = [str(s).strip() for s in tokenizer(BibleDataset.normalize(row[4]))
+                        segs = [str(s).strip() for s in tokenizer(self.normalize(row[4]))
                                 if len(str(s).strip()) > 0]
 
                         if len(segs) > MAX_SENTENCE_LENGTH:
@@ -193,7 +192,7 @@ class BibleDataset(Dataset):
         return cluster, data
 
     def normalize(self, sentence):
-        sentence = Dataset.normalize(sentence)
+        sentence = super().normalize(sentence)
         psalms = re.findall('psalm [0-9]+', sentence)
         if len(psalms) > 0:
             sentence = sentence.split(psalms[0])[0]
@@ -215,32 +214,43 @@ class BibleDataset(Dataset):
 
 
 class NumSentenceGen(object):
-    def __init__(self, rng):
+    def __init__(self, rng, indexer):
         self.range = rng
+        self.indexer = indexer
 
     def __getitem__(self, item):
-        return list(str(item))
+        if type(item) == int:
+            return self.indexer(self.__get_sentence__(item))
+        elif type(item) == slice:
+            return [self[i] for i in range(item.start, item.stop)]
+        else:
+            return [self[i] for i in item]
 
     def __len__(self):
         return len(self.range)
 
+    def __get_sentence__(self, number):
+        return list(str(number))
+
 
 class NumWordedSentenceGen(NumSentenceGen):
-    def __init__(self, rng, normalizer):
-        super().__init__(rng)
+    def __init__(self, rng, indexer, normalizer):
+        super().__init__(rng, indexer)
         self.normalizer = normalizer
         self.word_producer = num2words.lang_EN.Num2Word_EN()
 
-    def __getitem__(self, item):
-        return self.normalizer(self.word_producer.to_cardinal(item)).split()
+    def __get_sentence__(self, number):
+        return self.normalizer(self.word_producer.to_cardinal(number)).split()
 
 
 class Num2WordsDataset(Dataset):
     def __init__(self, start=1, end=1000000, test_split=0.1, validation_split=0.1):
         super().__init__()
         self.range = range(start, end)
-        self.corpora = {'<num>': NumSentenceGen(range(start, end)),
-                        '<wrd>': NumWordedSentenceGen(range(start, end), normalizer=lambda s: self.normalize(s))}
+        indexer = lambda s: self.sentence2indexes(s)
+        self.corpora = {'<num>': NumSentenceGen(range(start, end), indexer=indexer),
+                        '<wrd>': NumWordedSentenceGen(range(start, end), indexer=indexer,
+                                                      normalizer=lambda s: self.normalize(s))}
         numbers = list('0123456789')
         self.word2index = {k: v for v, k in enumerate(sorted([card for card in self.corpora['<wrd>'].word_producer.
                                                              cards.values()] + self.corpora['<wrd>'].word_producer.
@@ -258,7 +268,10 @@ class Num2WordsDataset(Dataset):
         self.test = (self.val[1], self.val[1] + test_count)
         self.train = (self.test[1], self.val[1] + train_count)
 
-    def tokenize_sentence(self, sentence):
+        longest_num = int(''.join(['9'] * len(str(10000000-1))))
+        self.max_sentence_length = max([len(corpus[longest_num]) for corpus in self.corpora.values()])
+
+    def sentence2indexes(self, sentence):
         return [self.word2index[seg] for seg in sentence]
 
     def pad_sentence(self, sentence, length):
@@ -271,7 +284,7 @@ class Num2WordsDataset(Dataset):
         sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
                           random.sample(range(*data), k=batch_size)))
         max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
-        return [self.pad_sentence(self.tokenize_sentence(self.corpora[style][sent]), max_len) for style, sent in
+        return [self.pad_sentence(self.corpora[style][sent], max_len) for style, sent in
                 sample], [self.style2index[style] for style, _ in sample]
 
     def enc_input(self, batch):

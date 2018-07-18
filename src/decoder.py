@@ -90,7 +90,7 @@ class SamplingDecoder():
             else:
                 r = dataset.test
 
-            start, end = r[0], r[1]
+            start, end = r[0], min(r[1], r[0] + 64)
 
             for style in styles:
                 sentence = dataset.corpora[style][start:end][i]
