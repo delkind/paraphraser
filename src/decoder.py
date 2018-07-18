@@ -74,7 +74,7 @@ class SamplingDecoder():
           sample_ids : verse-id to sample (list)
           replace_style: if true, will pass a different style
         """
-        styles = ['<bbe>', '<ylt>']
+        styles = list(dataset.style2index.keys())
         # corp1 = dataset.corpora['<bbe>']
         # corp2 = dataset.corpora['<ylt>']
         # data1={'train': corp1[dataset.train[0]:dataset.train[1]], 'val':corp1[dataset.val[0]:dataset.val[1]] , 'test':corp1[dataset.test[0]:dataset.test[1]]}
