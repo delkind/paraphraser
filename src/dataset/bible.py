@@ -11,7 +11,6 @@ from keras.utils import to_categorical
 from itertools import product
 import num2words
 
-
 END_SYMBOL = '<end>'
 START_SYMBOL = '<start>'
 # SPEC_CHARS_REPLACEMENT = {'.': ' <DOT> ', ',': ' <COMMA> ', ';': ' <SEMICOLON> ', ':': ' <COLON> ', '!': ' <EXCL> ',
@@ -208,7 +207,8 @@ class BibleDataset(Dataset):
                 cluster = len(sent) // iteration
                 clusters[cluster].append((style_index, sent_index))
 
-        clusters = {k: (max([len(self.corpora[self.index2style[s[0]]][s[1]]) for s in v]), v) for k, v in clusters.items()}
+        clusters = {k: (max([len(self.corpora[self.index2style[s[0]]][s[1]]) for s in v]), v) for k, v in
+                    clusters.items()}
 
         return clusters
 
@@ -268,7 +268,7 @@ class Num2WordsDataset(Dataset):
         self.test = (self.val[1], self.val[1] + test_count)
         self.train = (self.test[1], self.val[1] + train_count)
 
-        longest_num = int(''.join(['9'] * len(str(10000000-1))))
+        longest_num = int('9' * len(str(end - 1)))
         self.max_sentence_length = max([len(corpus[longest_num]) for corpus in self.corpora.values()])
 
     def sentence2indexes(self, sentence):
@@ -324,7 +324,7 @@ def test_bible_dataset():
     dataset = Num2WordsDataset()
     print(next(dataset.gen_adv(dataset.train)))
     pass
-    print ('loading dataset')
+    print('loading dataset')
     dataset = BibleDataset(["bbe", "ylt"])
 
     for i in range(1):
@@ -333,7 +333,7 @@ def test_bible_dataset():
         print('staring to create 100 batches. if it is slow, try to imporve the code!')
         for _ in range(100):
             next(g_adv)
-        print ('end of creating 100 batches')
+        print('end of creating 100 batches')
 
     print(dataset.style2index)
     print(list(dataset.word2index.items())[-6:])
