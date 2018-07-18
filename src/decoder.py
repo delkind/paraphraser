@@ -116,12 +116,12 @@ class SamplingDecoder():
                         p = self.model_g_d.g.predict([one_x, one_x_d])
                         p = p[0].argmax(axis=1)
                         # print ('argmax:',p)
-                        print(colored(f'decoder TF     [{replaced_style}]: {dataset.recostruct_sentence(p[1:])}',
+                        print(colored(f'decoder TF     [{replaced_style}]: {dataset.recostruct_sentence(p)}',
                                       'red'))  # skip first token of style
                     else:
                         # print (one_x)
                         max_decoder_seq_length = dataset.max_sentence_length + 1  # always pad one
                         p = self.decode_sequence(one_x, dataset.word2index[replaced_style], max_decoder_seq_length,dataset.word2index[dataset.end_symbol() ], verbose=False)
-                        print(f'decoder sample [{replaced_style}]:', dataset.recostruct_sentence(p))
+                        print(colored(f'decoder sample [{replaced_style}]: {dataset.recostruct_sentence(p)}','blue'))
 
                     print(f'gold label     [{replaced_style}]:', dataset.recostruct_sentence(gold_label))

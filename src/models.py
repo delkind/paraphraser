@@ -178,8 +178,8 @@ class D_G_Model:
         # Seperate everything in d , both Encoder and Classfier
         d_encoder_model = self.build_encoder_model(encoder_inputs)
         d_encoder_model.trainable = False
-        d_classifier_model = self.build_d()
-        d = Model(encoder_inputs, d_classifier_model(d_encoder_model(encoder_inputs)))
+        d_classifier_head = self.build_d()
+        d = Model(encoder_inputs, d_classifier_head(d_encoder_model(encoder_inputs)))
         d.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         # train_d(d,50) # TRAINING WELL alone , had used wrong names for models
 
