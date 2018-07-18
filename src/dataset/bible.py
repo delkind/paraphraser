@@ -1,5 +1,6 @@
 import codecs
 import csv
+import math
 import random
 import re
 from collections import Counter
@@ -8,6 +9,7 @@ import numpy as np
 from keras.utils.data_utils import get_file
 from keras.utils import to_categorical
 from itertools import product
+import num2words
 
 
 END_SYMBOL = '<end>'
@@ -43,15 +45,18 @@ class Dataset:
     def __init__(self):
         self.word2index = {}
         self.index2word = {}
-        self.frequencies = {}
+
+    @staticmethod
+    def end_symbol():
+        return END_SYMBOL
 
     def create_mapping(self, corpora):
         segs = [seg for corpus in corpora.values() for sentence in corpus for seg in sentence]
         frequencies = Counter(segs).items()
         oov = [c for (_, c) in frequencies if c <= MIN_FREQ]
-        self.frequencies = {k: l for (k, l) in frequencies if l > MIN_FREQ or k == OOV}
-        self.frequencies[OOV] = sum(oov)
-        self.word2index = {seg: num for (num, seg) in enumerate(sorted(list(self.frequencies.keys())))}
+        frequencies = {k: l for (k, l) in frequencies if l > MIN_FREQ or k == OOV}
+        frequencies[OOV] = sum(oov)
+        self.word2index = {seg: num for (num, seg) in enumerate(sorted(list(frequencies.keys())))}
         markers = [START_SYMBOL, END_SYMBOL] + list(corpora.keys())
         for m in sorted(markers):
             self.word2index[m] = len(self.word2index)
@@ -63,8 +68,7 @@ class Dataset:
         return {key: [[self.word2index.get(seg, oov) for seg in sentence] for sentence in corpus]
                 for (key, corpus) in corpora.items()}
 
-    @staticmethod
-    def normalize(sentence):
+    def normalize(self, sentence):
         sentence = re.sub('[^ a-zA-Z0-9.,:;!\?\'{}]', ' ', sentence.lower())
         return sentence.strip()
 
@@ -133,14 +137,14 @@ class BibleDataset(Dataset):
         validation = set(validation)
         train = set(index) - test - validation
 
-        train = (0, sum([count[i] for i in train]) - 1)
-        validation = (train[1] + 1, train[1] + sum([count[i] for i in validation]))
-        test = (validation[1] + 1, validation[1] + sum([count[i] for i in test]))
+        train = (0, sum([count[i] for i in train]))
+        validation = (train[1], train[1] + sum([count[i] for i in validation]))
+        test = (validation[1], validation[1] + sum([count[i] for i in test]))
 
         return train, test, validation
 
     def pad_sentence(self, sentence, length):
-        return sentence + [self.word2index['<end>']] * (length - len(sentence))
+        return sentence + [self.word2index[END_SYMBOL]] * (length - len(sentence))
 
     def recostruct_sentence(self, sentence):
         return ' '.join([self.index2word[seg] for seg in sentence])
@@ -150,11 +154,8 @@ class BibleDataset(Dataset):
         return [self.pad_sentence(self.corpora[self.index2style[style]][sent], max_len)
                 for style, sent in sample], [style for style, _ in sample]
 
-    def end_symbol(self):
-        return END_SYMBOL
-
     def enc_input(self, batch):
-        return np.array([s + [self.word2index['<end>']] for s in batch], int)
+        return np.array([s + [self.word2index[END_SYMBOL]] for s in batch], int)
 
     def dec_input(self, batch, styles):
         return np.array([[self.word2index[style]] + s for (s, style) in zip(batch, styles)], int)
@@ -191,8 +192,7 @@ class BibleDataset(Dataset):
             self.clusters[cluster][1]))
         return cluster, data
 
-    @staticmethod
-    def normalize(sentence):
+    def normalize(self, sentence):
         sentence = Dataset.normalize(sentence)
         psalms = re.findall('psalm [0-9]+', sentence)
         if len(psalms) > 0:
@@ -214,17 +214,125 @@ class BibleDataset(Dataset):
         return clusters
 
 
+class NumSentenceGen(object):
+    def __init__(self, rng):
+        self.range = rng
+
+    def __getitem__(self, item):
+        return list(str(item))
+
+    def __len__(self):
+        return len(self.range)
+
+
+class NumWordedSentenceGen(NumSentenceGen):
+    def __init__(self, rng, normalizer):
+        super().__init__(rng)
+        self.normalizer = normalizer
+        self.word_producer = num2words.lang_EN.Num2Word_EN()
+
+    def __getitem__(self, item):
+        return self.normalizer(self.word_producer.to_cardinal(item)).split()
+
+
+class Num2WordsDataset(Dataset):
+    def __init__(self, start=1, end=1000000, test_split=0.1, validation_split=0.1):
+        super().__init__()
+        self.range = range(start, end)
+        self.corpora = {'<num>': NumSentenceGen(range(start, end)),
+                        '<wrd>': NumWordedSentenceGen(range(start, end), normalizer=lambda s: self.normalize(s))}
+        numbers = list('0123456789')
+        self.word2index = {k: v for v, k in enumerate(sorted([card for card in self.corpora['<wrd>'].word_producer.
+                                                             cards.values()] + self.corpora['<wrd>'].word_producer.
+                                                             exclude_title + list(self.corpora.keys()) +
+                                                             numbers + [END_SYMBOL]))}
+        self.index2word = {v: k for k, v in self.word2index.items()}
+        self.index2style = {k: v for k, v in enumerate(list(self.corpora.keys()))}
+        self.style2index = {v: k for k, v in self.index2style.items()}
+
+        val_count = int(len(self.range) * validation_split)
+        test_count = int(len(self.range) * test_split)
+        train_count = len(self.range) - val_count - test_count
+
+        self.val = (start, val_count + 1)
+        self.test = (self.val[1], self.val[1] + test_count)
+        self.train = (self.test[1], self.val[1] + train_count)
+
+    def tokenize_sentence(self, sentence):
+        return [self.word2index[seg] for seg in sentence]
+
+    def pad_sentence(self, sentence, length):
+        return sentence + [self.word2index[END_SYMBOL]] * (length - len(sentence))
+
+    def recostruct_sentence(self, sentence):
+        return ' '.join([self.index2word[seg] for seg in sentence])
+
+    def sample_batch(self, data, batch_size):
+        sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
+                          random.sample(range(*data), k=batch_size)))
+        max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
+        return [self.pad_sentence(self.tokenize_sentence(self.corpora[style][sent]), max_len) for style, sent in
+                sample], [self.style2index[style] for style, _ in sample]
+
+    def enc_input(self, batch):
+        return np.array([s + [self.word2index[END_SYMBOL]] for s in batch], int)
+
+    def dec_input(self, batch, styles):
+        return np.array([[self.word2index[style]] + s for (s, style) in zip(batch, styles)], int)
+
+    def gen_g(self, data_range, batch_size=64):
+        while True:
+            batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+
+            yield [self.enc_input(batch), dec_input], to_categorical(dec_input, len(self.word2index)).astype(int)
+
+    def gen_d(self, data_range, batch_size=64):
+        while True:
+            batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+            yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
+
+    def gen_adv(self, data_range, batch_size=64):
+        while True:
+            batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+            enc_input = self.enc_input(batch)
+            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+            yield [enc_input, dec_input], \
+                  [to_categorical(enc_input, len(self.word2index)).astype(int),
+                   to_categorical(styles, len(self.corpora)).astype(int)]
+
+    def normalize(self, sentence):
+        sentence = re.sub('[^ a-z]', ' ', sentence.lower())
+        return sentence.strip()
+
+    #
+    # @staticmethod
+    # def normalize(sentence):
+    #     sentence = Dataset.normalize(sentence)
+    #     psalms = re.findall('psalm [0-9]+', sentence)
+    #     if len(psalms) > 0:
+    #         sentence = sentence.split(psalms[0])[0]
+    #     sentence = re.sub(r'\{(.*?)\}', '', sentence)
+    #     sentence = re.sub('[0-9]+ <COLON> [0-9]+', '', sentence)
+    #
+    #     return sentence
+    #
+    # def cluster(self, iteration):
+    #     clusters = {i: [] for i in range(self.max_sentence_length // iteration + 1)}
+    #     for style_index, style in self.index2style.items():
+    #         for sent_index, sent in enumerate(self.corpora[style]):
+    #             cluster = len(sent) // iteration
+    #             clusters[cluster].append((style_index, sent_index))
+    #
+    #     clusters = {k: (max([len(self.corpora[self.index2style[s[0]]][s[1]]) for s in v]), v) for k, v in clusters.items()}
+    #
+    #     return clusters
+
 def test_bible_dataset():
     # dataset = BibleDataset(URL_ROOT, ["asv", "bbe", "dby", "kjv", "wbt", "web", "ylt"], CSV_EXT)
-    dataset = BibleDataset(["bbe", "ylt"])
-
-    for i in range(500):
-        if i % 10 == 0: print(i)
-        # WORKS ON TRAIN g_adv = dataset.gen_adv(dataset.train, batch_size)
-        g_adv = dataset.gen_adv(dataset.val, 64)
-        for _ in range(2):
-            [x1, x2], [y1, y2] = next(g_adv)
-            # print (x1.shape)
+    dataset = Num2WordsDataset()
+    print(next(dataset.gen_adv(dataset.train)))
+    pass
 
 
 if __name__ == '__main__':
