@@ -264,9 +264,9 @@ class D_G_Trainer():
                                    # workers=2
                                    )
 
-    def train_d_g(self, steps, validation_steps=1, batch_size=64):
+    def train_d_g(self, steps, validation_steps=1, batch_size=64,noise=0.0):
         self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
-        self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size),
+        self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size,noise),
                                      steps,
                                      validation_steps=validation_steps,
                                      validation_data=self.dataset.gen_adv(self.dataset.val, batch_size),
@@ -275,9 +275,9 @@ class D_G_Trainer():
                                      verbose=0 if steps < 20 else 1,
                                      callbacks=[self.loss_history_adv])
 
-    def train_d(self, steps, validation_steps=1, batch_size=64):
+    def train_d(self, steps, validation_steps=1, batch_size=64,noise=0.0):
         self.model.d_encoder_model.set_weights(self.model.encoder_model.get_weights())
-        self.model.d.fit_generator(self.dataset.gen_d(self.dataset.train, batch_size),
+        self.model.d.fit_generator(self.dataset.gen_d(self.dataset.train, batch_size,noise),
                                    steps,
                                    validation_steps=validation_steps,
                                    validation_data=self.dataset.gen_d(self.dataset.val, batch_size),
@@ -338,24 +338,24 @@ def test():
                       num_decoder_tokens=len(dataset.word2index),  # from dataset 3628
                       style_out_size=len(dataset.style2index),  # from dataset 2
                       cuddlstm=False,
-                      latent_dim=128,  # twice the default. make it stronger! but slower
-                      bidi_encoder=True,
+                      latent_dim=64,  # twice the default. make it stronger! but slower
+                      bidi_encoder=False,
                       adv_loss_weight=1.0, )
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
     trainer.train_g(10, 1)
 
-    print(trainer.eval_d( 50))
-    print(trainer.eval_d_g( 50))
+    print(trainer.eval_d( 10))
+    print(trainer.eval_d_g( 10,))
     print ('training d')
-    trainer.train_d(50, 1)
-    print(trainer.eval_d(50))
-    print(trainer.eval_d_g(50))
+    trainer.train_d(10, 1,noise=0.1)
+    print(trainer.eval_d(10))
+    print(trainer.eval_d_g(10))
 
     print('training d_g')
-    trainer.train_d_g(50, 1)
-    print(trainer.eval_d(50))
-    print(trainer.eval_d_g(50))
+    trainer.train_d_g(10, 1)
+    print(trainer.eval_d(10))
+    print(trainer.eval_d_g(10))
     #trainer.train_d_g(50, 1)
     #trainer.plt_all()
 

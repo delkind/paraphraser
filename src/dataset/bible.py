@@ -302,16 +302,32 @@ class Num2WordsDataset(Dataset):
 
             yield [self.enc_input(batch), dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
 
-    def gen_d(self, data_range, batch_size=64):
+    def gen_d(self, data_range, batch_size=64, noise=0.0):
+        """
+        :param data_range:
+        :param batch_size:
+        :param noise: delibratly switch label value of noise*batch_size
+        :return:
+        """
         while True:
             batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+
+            if int(noise*batch_size)>0:
+                noise_ind = np.random.choice(range(batch_size), int(batch_size * noise), replace=False)
+                styles = np.array(styles)
+                styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
             yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
 
-    def gen_adv(self, data_range, batch_size=64):
+    def gen_adv(self, data_range, batch_size=64,noise=0.0):
         while True:
             batch, styles = self.sample_batch(data_range, batch_size=batch_size)
             enc_input = self.enc_input(batch)
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+            if int(noise*batch_size)>0:
+                noise_ind = np.random.choice(range(batch_size), int(batch_size * noise), replace=False)
+                styles = np.array(styles)
+                styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
+
             yield [enc_input, dec_input], \
                   [to_categorical(enc_input, len(self.word2index)).astype(int),
                    to_categorical(styles, len(self.corpora)).astype(int)]
@@ -319,6 +335,10 @@ class Num2WordsDataset(Dataset):
     def normalize(self, sentence):
         sentence = re.sub('[^ a-z]', ' ', sentence.lower())
         return sentence.strip()
+
+def test_num_dataset():
+    dataset = Num2WordsDataset()
+    next(dataset.gen_d(dataset.train,10,noise=0.4))
 
 
 def test_bible_dataset():
@@ -347,4 +367,5 @@ def test_bible_dataset():
 
 
 if __name__ == '__main__':
-    test_bible_dataset()
+    # test_bible_dataset()
+    test_num_dataset()
