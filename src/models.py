@@ -1,7 +1,9 @@
+import numpy as np
+import keras
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense, Embedding,CuDNNLSTM,Bidirectional,Concatenate,Dropout
 from keras import backend as K
-
+import matplotlib.pyplot as plt
 
 
 class D_G_Model:
@@ -20,42 +22,41 @@ class D_G_Model:
     We will freeze the discriminator weights, and train the encoder-decoder similiarly to (1) with extra objective.
     That the loss from the discriminator will be Maximized.
     """
-    def __init__(self,num_encoder_tokens,
-                      num_decoder_tokens,  #from dataset 3628
-                      style_out_size, #from dataset 2
-                      cuddlstm,
-                      embedding_dim = 300,  # 100-300 good numbers
-                      # hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
-                      # increasing should increase fit to train (and when using stronger reguralization/dropout even val)
-                      latent_dim = 256,
-                      bidi_encoder = False,
-                      # LSTM dropouts, one of the best ways to fight overfiltting. ragnge 0-0.5++ (0 means no dropout)
-                      # Increase it to reduce diff between train and val
-                      en_lstm_dropout = 0.3,
-                      en_lstm_recurrent_dropout = 0.3,  # only relevant if NOT cuddlstm.
-                      de_lstm_dropout = 0.0,  # only relevant if NOT cuddlstm.
-                      de_lstm_recurent_dropout = 0.0,  # only relevant if NOT cuddlstm
-                      # how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
-                      # 1.0 - 100.0 means same. 10.0 means ten time more, etc
-                      adv_loss_weight = 1.0,
-                      ):
 
-        self.num_encoder_tokens =num_encoder_tokens
-        self.num_decoder_tokens=num_decoder_tokens
-        self.embedding_dim=embedding_dim
+    def __init__(self, num_encoder_tokens,
+                 num_decoder_tokens,  # from dataset 3628
+                 style_out_size,  # from dataset 2
+                 cuddlstm,
+                 embedding_dim=300,  # 100-300 good numbers
+                 # hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
+                 # increasing should increase fit to train (and when using stronger reguralization/dropout even val)
+                 latent_dim=256,
+                 bidi_encoder=False,
+                 # LSTM dropouts, one of the best ways to fight overfiltting. ragnge 0-0.5++ (0 means no dropout)
+                 # Increase it to reduce diff between train and val
+                 en_lstm_dropout=0.3,
+                 en_lstm_recurrent_dropout=0.3,  # only relevant if NOT cuddlstm.
+                 de_lstm_dropout=0.0,  # only relevant if NOT cuddlstm.
+                 de_lstm_recurent_dropout=0.0,  # only relevant if NOT cuddlstm
+                 # how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
+                 # 1.0 - 100.0 means same. 10.0 means ten time more, etc
+                 adv_loss_weight=1.0,
+                 ):
+
+        self.num_encoder_tokens = num_encoder_tokens
+        self.num_decoder_tokens = num_decoder_tokens
+        self.embedding_dim = embedding_dim
         self.latent_dim = latent_dim
         self.bidi_encoder = bidi_encoder
         self.cuddlstm = cuddlstm
         self.en_lstm_dropout = en_lstm_dropout
         self.en_lstm_recurrent_dropout = en_lstm_recurrent_dropout
-        self.de_lstm_dropout=de_lstm_dropout
-        self.de_lstm_recurent_dropout= de_lstm_recurent_dropout
+        self.de_lstm_dropout = de_lstm_dropout
+        self.de_lstm_recurent_dropout = de_lstm_recurent_dropout
         self.adv_loss_weight = adv_loss_weight
         self.style_out_size = style_out_size
 
-
-
-        self.decoder_latent_dim = latent_dim* 2 if bidi_encoder else latent_dim
+        self.decoder_latent_dim = latent_dim * 2 if bidi_encoder else latent_dim
         self.shared_embedding = Embedding(num_encoder_tokens,
                                           embedding_dim,
                                           # weights=[word_embedding_matrix], if there is one (word2vec)
@@ -101,7 +102,8 @@ class D_G_Model:
                                      name='rnn_decoder')  # returned state used in inference
         else:
             decoder_lstm = LSTM(self.decoder_latent_dim, return_sequences=True, return_state=True,
-                                dropout=self.de_lstm_dropout, recurrent_dropout=self.de_lstm_recurent_dropout, name='rnn_decoder')
+                                dropout=self.de_lstm_dropout, recurrent_dropout=self.de_lstm_recurent_dropout,
+                                name='rnn_decoder')
         # decoder_outputs, _, _  = decoder_lstm(self.hared_embedding(decoder_inputs), initial_state=encoder_states)
         decoder_outputs, _, _ = decoder_lstm(self.shared_embedding(decoder_inputs),
                                              initial_state=encoder_model(encoder_inputs))
@@ -166,8 +168,7 @@ class D_G_Model:
         return d
 
     def build_all(self):
-        # Careful note:  we have one shared encoder model here, but two unshared classifiers
-        # the weights in the classifier-head in 'd' are seperate between d, and g_d(adv)
+
         encoder_inputs = Input(shape=(None,), name='encoder_inputs')
         decoder_inputs = Input(shape=(None,), name='decoder_inputs')
         encoder_model = self.build_encoder_model(encoder_inputs)
@@ -181,17 +182,8 @@ class D_G_Model:
         d_classifier_head = self.build_d()
         d = Model(encoder_inputs, d_classifier_head(d_encoder_model(encoder_inputs)))
         d.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
         # train_d(d,50) # TRAINING WELL alone , had used wrong names for models
-
-        classifier_model = self.build_d()
-        adv_d_out = classifier_model(encoder_model(encoder_inputs))  # encoder_model,encoder_inputs)
-        adv_model = Model([encoder_inputs, decoder_inputs], [model.output, adv_d_out])
-        # in adv , encoder is not trainable. decoder is not.
-        classifier_model.trainable = False
-
-        # print_trainable(adv_model)
-
-
 
         def inverse_categorical_crossentropy(y_true, y_pred):
             # need to implement it better , sum(1/categorical_crossentropy_per_sample)
@@ -200,15 +192,27 @@ class D_G_Model:
             # so expeceted range is GREAT=1 , BAD=BIGGG
             return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.0001)
 
-        adv_model.compile(optimizer='adam',
-                          loss=['categorical_crossentropy', inverse_categorical_crossentropy],
-                          loss_weights=[1, self.adv_loss_weight])
+        classifier_head = self.build_d()
+        adv_d_out = classifier_head(encoder_model(encoder_inputs))  # encoder_model,encoder_inputs)
+        g_d = Model([encoder_inputs, decoder_inputs], [model.output, adv_d_out])
+        # in adv , encoder is not trainable. decoder is not.
+        classifier_head.trainable = False
+
+        g_d.compile(optimizer='adam',
+                    loss=['categorical_crossentropy', inverse_categorical_crossentropy],
+                    loss_weights=[1, self.adv_loss_weight])
 
         self.encoder_model = encoder_model
         self.decoder_sampling_model = decoder_sampling_model
-        self.d = d
         self.g = model
-        self.g_d = adv_model
+
+        self.d = d
+        self.d_encoder_model = d_encoder_model
+        self.d_classifier_head = d_classifier_head
+
+        self.g_d = g_d
+        self.classifier_head = classifier_head
+        # self.encoder_model shared before
 
     def get_models(self):
         return [self.encoder_model, self.decoder_sampling_model, self.d, self.g, self.g_d]
@@ -218,3 +222,114 @@ class D_G_Model:
 
 
 
+
+
+class LossHistory(keras.callbacks.Callback):
+    def __init__(self):
+        self.losses = {'loss': [], 'val_loss': []}
+
+    # def on_train_begin(self, logs={}):
+    #  pass
+
+    def on_epoch_end(self, batch, logs={}):
+        for loss in ['loss', 'val_loss']:
+            self.losses[loss].append(logs.get(loss))
+
+
+class D_G_Trainer():
+    def __init__(self, model, dataset):
+        self.model = model
+        self.dataset = dataset
+        self.loss_history = LossHistory()
+        self.loss_history_d = LossHistory()
+        self.loss_history_adv = LossHistory()
+
+    def train_g(self, steps, validation_steps=1, batch_size=64):
+        self.model.g.fit_generator(self.dataset.gen_g(self.dataset.train, batch_size),
+                                   steps,
+                                   validation_steps=validation_steps,
+                                   validation_data=self.dataset.gen_g(self.dataset.val, batch_size),
+                                   callbacks=[self.loss_history],
+                                   verbose=0 if steps < 10 else 1,
+                                   max_queue_size=50,
+                                   # workers=2
+                                   )
+
+    def train_g_d(self, steps, validation_steps=1, batch_size=64):
+        self.model.classifier_head.set_weights(self.model.classifier_head.get_weights())
+
+        self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size),
+                                     steps,
+                                     validation_steps=validation_steps,
+                                     validation_data=self.dataset.gen_adv(self.dataset.val, batch_size),
+                                     max_queue_size=50,
+                                     # workers=2,
+                                     verbose=0 if steps < 20 else 1,
+                                     callbacks=[self.loss_history_adv])
+
+    def train_d(self, steps, validation_steps=1, batch_size=64):
+        self.model.d_encoder_model.set_weights(self.model.encoder_model.get_weights())
+        self.model.d.fit_generator(self.dataset.gen_d(self.dataset.train, batch_size),
+                                   steps,
+                                   validation_steps=validation_steps,
+                                   validation_data=self.dataset.gen_d(self.dataset.val, batch_size),
+                                   verbose=0 if steps < 20 else 1,
+                                   max_queue_size=50,
+                                   # workers=2,
+                                   callbacks=[self.loss_history_d])
+        print(self.loss_history_d)
+
+    # summarize history for loss
+    @staticmethod
+    def plt_losses(l_h, title, with_val=False):
+        print(l_h)
+
+        plt.title(title)
+        if len(l_h.losses['loss']) == 1:
+            plt.scatter([0], l_h.losses['loss'][0], c='b')
+            if with_val:
+                plt.scatter([0], l_h.losses['val_loss'][0], c='g')
+        elif len(l_h.losses['loss']) > 1:
+            med = np.median(l_h.losses['loss'])
+            plt.plot(l_h.losses['loss'][:])
+            if with_val:
+                plt.plot(l_h.losses['val_loss'][:])
+            plt.ylim(ymin=-0.2)
+            plt.ylim(ymax=med + 2.5)
+        plt.ylabel('loss')
+        plt.xlabel('batchse')
+        plt.legend(['train', 'val'], loc='upper right')
+
+    def plt_all(self, with_val=True):
+        print(self.loss_history_d)
+        plt.figure(figsize=(14, 4))
+        plt.subplot(131)  # numrows, numcols, fignum
+        D_G_Trainer.plt_losses(self.loss_history, 'g loss', with_val)
+        plt.subplot(132)
+        D_G_Trainer.plt_losses(self.loss_history_d, 'd loss', with_val)
+        plt.subplot(133)
+        D_G_Trainer.plt_losses(self.loss_history_adv, 'adv loss', with_val)
+        plt.show()
+
+
+def test():
+    from dataset.bible import Num2WordsDataset
+    dataset = Num2WordsDataset(start=1, end=10 * 1000 * 1000)
+
+    model = D_G_Model(num_encoder_tokens=len(dataset.word2index),
+                      num_decoder_tokens=len(dataset.word2index),  # from dataset 3628
+                      style_out_size=len(dataset.style2index),  # from dataset 2
+                      cuddlstm=False,
+                      latent_dim=128,  # twice the default. make it stronger! but slower
+                      bidi_encoder=True,
+                      adv_loss_weight=1.0, )
+    model.build_all()
+    trainer = D_G_Trainer(model, dataset)
+    trainer.train_g(10, 1)
+    trainer.train_g_d(10, 1)
+    trainer.train_d(10, 1)
+    trainer.plt_all()
+
+
+if __name__=='__main__':
+    test()
