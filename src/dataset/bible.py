@@ -4,7 +4,7 @@ import math
 import random
 import re
 from collections import Counter
-from spacy.lang.en import English
+
 import numpy as np
 from keras.utils.data_utils import get_file
 from keras.utils import to_categorical
@@ -86,6 +86,7 @@ class BibleDataset(Dataset):
         pass
 
     def parse_csv(self, base_url, files, suffix):
+        from spacy.lang.en import English
         tokenizer = English().Defaults.create_tokenizer()
         corpora = {}
         for file in files:
