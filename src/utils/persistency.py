@@ -40,6 +40,14 @@ class GoogleDrive():
 
 
 class Persistency():
+    """
+    usage:
+    Persistency().save_weights(model.get_models(), model.get_model_names(), save_to_gdrive=True)  # not run yet....
+    # saving models/models_weights_2018-07-17_19-40-05.zip as id 1kxKYkP0iojqYZ6JY5kNvhdrGSjMTqYMX
+
+    #pers.load_weights_from(model.get_models(), model.get_model_names(), folder='from_gdrive/', download_gdrive_id=load_id)
+
+    """
     def __init__(self):
         self.models_base_dir = 'models'
         if not os.path.exists(self.models_base_dir):
@@ -96,15 +104,5 @@ class Persistency():
         print('load from ', folder, 'complete. Make sure you already compiled the model and set optimizers')
 
 
-# models      = [encoder_model   , model,    decoder_sampling_model,   d_classifier_model] #rest can be built from them?
-# model_names = ['encoder_model', 'model', 'decoder_sampling_model','d_classifier_model' ] #rest can be built from them?
-# Persistency().load_weights_from('models/2018-07-15_10-15-21',models,model_names)
-def test_drive():
-    models      = [encoder_model   , model,    decoder_sampling_model,   d_classifier_model] #rest can be built from them?
-    model_names = ['encoder_model', 'model', 'decoder_sampling_model','d_classifier_model' ] #rest can be built from them?
-    Persistency().load_weights_from(models,model_names,download_gdrive_id='12Ib2nxiT5H7QbOmsM2-rTRGj4_Pxnxt0',folder='from_upload')
-
-def test_persistency():
-    p= Persistency()
 
 

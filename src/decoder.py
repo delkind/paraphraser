@@ -129,4 +129,7 @@ class SamplingDecoder():
                     print(f'gold label     [{replaced_style}]:', dataset.recostruct_sentence(gold_label))
 
         except :
-            print('if the problem is cuda, make sure you are with GPU. if you changed to CPU, you must restart process in colab')
+            print('1. if the problem is cuda, make sure you are with GPU. if you changed to CPU, you must restart process in colab')
+            print('2. also check for sample range, if you used val with large sample, mabe it is out of range?')
+            import traceback
+            traceback.print_exc()

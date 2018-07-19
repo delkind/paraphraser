@@ -256,7 +256,7 @@ class D_G_Trainer():
                                    )
 
     def train_d_g(self, steps, validation_steps=1, batch_size=64):
-        self.model.classifier_head.set_weights(self.model.classifier_head.get_weights())
+        self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
 
         self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size),
                                      steps,
