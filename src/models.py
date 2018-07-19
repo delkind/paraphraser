@@ -25,7 +25,7 @@ class D_G_Model:
                       style_out_size, #from dataset 2
                       cuddlstm,
                       embedding_dim = 300,  # 100-300 good numbers
-                      # for hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
+                      # hidden unit of LSTM. Increasing it increase the model strength (and compuation time).
                       # increasing should increase fit to train (and when using stronger reguralization/dropout even val)
                       latent_dim = 256,
                       bidi_encoder = False,
@@ -105,7 +105,7 @@ class D_G_Model:
         # decoder_outputs, _, _  = decoder_lstm(self.hared_embedding(decoder_inputs), initial_state=encoder_states)
         decoder_outputs, _, _ = decoder_lstm(self.shared_embedding(decoder_inputs),
                                              initial_state=encoder_model(encoder_inputs))
-        decoder_dense = Dense(self.num_decoder_tokens, activation='softmax', name='decoder_softmax')
+        decoder_dense = Dense(self.num_decoder_tokens, activation='softmax', name='dcd_sfmax')
         decoder_outputs = decoder_dense(decoder_outputs)
 
         # Define the model that will turn
@@ -162,7 +162,7 @@ class D_G_Model:
         # d = Model(d_inputs,style_outputs)
         # d = Model(d__encoder_inputs,d__style_outputs)  #style_outputs : batch , one-hot-encoding-of-style
         d = Model(d__states, d__style_outputs,
-                  name='style_classifier')  # style_outputs : batch , one-hot-encoding-of-style
+                  name='styl_clsf')  # style_outputs : batch , one-hot-encoding-of-style
         return d
 
     def build_all(self):
