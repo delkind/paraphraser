@@ -5,7 +5,6 @@ from keras.layers import Input, LSTM, Dense, Embedding,CuDNNLSTM,Bidirectional,C
 from keras import backend as K
 from keras.optimizers import  Adam,SGD
 import matplotlib.pyplot as plt
-from tensorflow.python.keras._impl.keras.optimizers import clip_norm
 
 
 class D_G_Model:
