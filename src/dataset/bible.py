@@ -297,8 +297,9 @@ class Num2WordsDataset(Dataset):
         while True:
             batch, styles = self.sample_batch(data_range, batch_size=batch_size)
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+            enc_input = self.enc_input(batch)
 
-            yield [self.enc_input(batch), dec_input], to_categorical(dec_input, len(self.word2index)).astype(int)
+            yield [self.enc_input(batch), dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
 
     def gen_d(self, data_range, batch_size=64):
         while True:

@@ -74,7 +74,7 @@ def train_g(g, steps, validation_steps=1):
 
 
 def train_d(d, steps, validation_steps=1):
-    # %time d_encoder_model.set_weights(encoder_model.get_weights())
+    d.encoder_model.set_weights(d.encoder_model.get_weights())
     d.fit_generator(dataset.gen_d(dataset.train, batch_size),
                     steps,
                     validation_steps=validation_steps,
