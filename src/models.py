@@ -3,7 +3,9 @@ import keras
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense, Embedding,CuDNNLSTM,Bidirectional,Concatenate,Dropout
 from keras import backend as K
+from keras.optimizers import  Adam,SGD
 import matplotlib.pyplot as plt
+from tensorflow.python.keras._impl.keras.optimizers import clip_norm
 
 
 class D_G_Model:
@@ -41,6 +43,8 @@ class D_G_Model:
                  # how much weight to assign to adv-classifier compared to 1.0 of reconstruction-loss
                  # 1.0 - 100.0 means same. 10.0 means ten time more, etc
                  adv_loss_weight=1.0,
+                 optimizer_clip_value=0.5,
+                 optimizer_clip_norm=1.0
                  ):
 
         self.num_encoder_tokens = num_encoder_tokens
@@ -55,6 +59,8 @@ class D_G_Model:
         self.de_lstm_recurent_dropout = de_lstm_recurent_dropout
         self.adv_loss_weight = adv_loss_weight
         self.style_out_size = style_out_size
+        self.optimizer_clip_value = optimizer_clip_value
+        self.optimizer_clip_norm = optimizer_clip_norm
 
         self.decoder_latent_dim = latent_dim * 2 if bidi_encoder else latent_dim
         self.shared_embedding = Embedding(num_encoder_tokens,
@@ -181,7 +187,8 @@ class D_G_Model:
         d_encoder_model.trainable = False
         d_classifier_head = self.build_d()
         d = Model(encoder_inputs, d_classifier_head(d_encoder_model(encoder_inputs)))
-        d.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
+                  loss='categorical_crossentropy', metrics=['accuracy'])
 
         # train_d(d,50) # TRAINING WELL alone , had used wrong names for models
 
@@ -198,9 +205,12 @@ class D_G_Model:
         # in adv , encoder is not trainable. decoder is not.
         classifier_head.trainable = False
 
-        g_d.compile(optimizer='adam',
+        g_d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
                     loss=['categorical_crossentropy', inverse_categorical_crossentropy],
                     loss_weights=[1, self.adv_loss_weight])
+        optimizer_clip_value = 0.5,
+        optimizer_clip_norm = 1.0
+
 
         self.encoder_model = encoder_model
         self.decoder_sampling_model = decoder_sampling_model
@@ -323,8 +333,8 @@ def test():
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
     trainer.train_g(10, 1)
-    trainer.train_d_g(10, 1)
     trainer.train_d(10, 1)
+    trainer.train_d_g(50, 1)
     trainer.plt_all()
 
 
