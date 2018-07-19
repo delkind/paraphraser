@@ -70,7 +70,7 @@ class D_G_Model:
         if (self.cuddlstm):
             encoder_lstm = CuDNNLSTM(self.latent_dim, return_state=True)
         else:
-            print('using LSTM with dropout!')
+            print('using LSTM with dropout no CUDA!')
             # need to tune the dropout values (maybe fast.ai tips) , just invented those value
             # see dropout disucssion: https://github.com/keras-team/keras/issues/7290. iliaschalkidis
             encoder_lstm = LSTM(self.latent_dim, return_state=True, dropout=self.en_lstm_dropout,
@@ -255,7 +255,7 @@ class D_G_Trainer():
                                    # workers=2
                                    )
 
-    def train_g_d(self, steps, validation_steps=1, batch_size=64):
+    def train_d_g(self, steps, validation_steps=1, batch_size=64):
         self.model.classifier_head.set_weights(self.model.classifier_head.get_weights())
 
         self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size),
@@ -277,12 +277,10 @@ class D_G_Trainer():
                                    max_queue_size=50,
                                    # workers=2,
                                    callbacks=[self.loss_history_d])
-        print(self.loss_history_d)
 
     # summarize history for loss
     @staticmethod
     def plt_losses(l_h, title, with_val=False):
-        print(l_h)
 
         plt.title(title)
         if len(l_h.losses['loss']) == 1:
@@ -301,7 +299,6 @@ class D_G_Trainer():
         plt.legend(['train', 'val'], loc='upper right')
 
     def plt_all(self, with_val=True):
-        print(self.loss_history_d)
         plt.figure(figsize=(14, 4))
         plt.subplot(131)  # numrows, numcols, fignum
         D_G_Trainer.plt_losses(self.loss_history, 'g loss', with_val)
@@ -326,7 +323,7 @@ def test():
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
     trainer.train_g(10, 1)
-    trainer.train_g_d(10, 1)
+    trainer.train_d_g(10, 1)
     trainer.train_d(10, 1)
     trainer.plt_all()
 

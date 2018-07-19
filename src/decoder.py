@@ -80,7 +80,9 @@ class SamplingDecoder():
         # data1={'train': corp1[dataset.train[0]:dataset.train[1]], 'val':corp1[dataset.val[0]:dataset.val[1]] , 'test':corp1[dataset.test[0]:dataset.test[1]]}
         # data2={'train': corp2[dataset.train[0]:dataset.train[1]], 'val':corp2[dataset.val[0]:dataset.val[1]] , 'test':corp2[dataset.test[0]:dataset.test[1]]}
 
-        for i in sample_ids:
+        try:
+
+         for i in sample_ids:
             print('#' * 30, 'verb', i, '#' * 30)
 
             if data_type == 'train':
@@ -125,3 +127,6 @@ class SamplingDecoder():
                         print(colored(f'decoder sample [{replaced_style}]: {dataset.recostruct_sentence(p)}','blue'))
 
                     print(f'gold label     [{replaced_style}]:', dataset.recostruct_sentence(gold_label))
+
+        except :
+            print('if the problem is cuda, make sure you are with GPU. if you changed to CPU, you must restart process in colab')
