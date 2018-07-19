@@ -197,7 +197,7 @@ class D_G_Model:
             # if discriminator is random, on 2 styles, if expect 50% which should mean logloss of 1. so 1/1= 1
             # if discriminator is great, 99%, log-loss close to 0 , so 1/0 is big.
             # so expeceted range is GREAT=1 , BAD=BIGGG
-            return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.0001)
+            return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.01) #is it too-much?
 
         classifier_head = self.build_d()
         adv_d_out = classifier_head(encoder_model(encoder_inputs))  # encoder_model,encoder_inputs)
@@ -267,7 +267,6 @@ class D_G_Trainer():
 
     def train_d_g(self, steps, validation_steps=1, batch_size=64):
         self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
-
         self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size),
                                      steps,
                                      validation_steps=validation_steps,
@@ -288,7 +287,20 @@ class D_G_Trainer():
                                    # workers=2,
                                    callbacks=[self.loss_history_d])
 
-    # summarize history for loss
+    def eval_d(self, steps):
+        self.model.d_encoder_model.set_weights(self.model.encoder_model.get_weights())
+        return self.model.d.evaluate_generator(self.dataset.gen_d(self.dataset.train),
+                                          steps,
+                                          )
+
+    def eval_d_g(self, steps ):
+        self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
+
+        return self.model.g_d.evaluate_generator(self.dataset.gen_adv(self.dataset.train),
+                                            steps)
+
+
+        # summarize history for loss
     @staticmethod
     def plt_losses(l_h, title, with_val=False):
 
@@ -333,9 +345,20 @@ def test():
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
     trainer.train_g(10, 1)
-    trainer.train_d(10, 1)
+
+    print(trainer.eval_d( 50))
+    print(trainer.eval_d_g( 50))
+    print ('training d')
+    trainer.train_d(50, 1)
+    print(trainer.eval_d(50))
+    print(trainer.eval_d_g(50))
+
+    print('training d_g')
     trainer.train_d_g(50, 1)
-    trainer.plt_all()
+    print(trainer.eval_d(50))
+    print(trainer.eval_d_g(50))
+    #trainer.train_d_g(50, 1)
+    #trainer.plt_all()
 
 
 if __name__=='__main__':
