@@ -282,6 +282,7 @@ class Num2WordsDataset(Dataset):
         return ' '.join([self.index2word[seg] for seg in sentence])
 
     def sample_batch(self, data, batch_size):
+        print (data,batch_size)
         sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
                           random.sample(range(*data), k=batch_size)))
         #print (sample)
@@ -298,10 +299,15 @@ class Num2WordsDataset(Dataset):
         normal_noise = np.random.normal(0,noise_std,len(sample))
         noise_sample=[]
         for i,(style,num) in enumerate(sample):
-            noise_sample.append( (style,num+ int(normal_noise[i])) )
-        results=[]
+            noisy_num = min(max(data[0],num+ int(normal_noise[i])),data[1]) #must be range
+            #print (num,noisy_num)
+            noise_sample.append( (style,noisy_num) )
+
+
+        max_len = max(max([len(self.corpora[style][sent]) for style, sent in sample])
+                     ,max([len(self.corpora[style][sent]) for style, sent in noise_sample]))
+        results = []
         for sample in [sample,noise_sample]:
-            max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
             res=[self.pad_sentence(self.corpora[style][sent], max_len) for style, sent in
                     sample], [self.style2index[style] for style, _ in sample]
             results.append(res)
@@ -368,13 +374,7 @@ class Num2WordsDataset(Dataset):
         sentence = re.sub('[^ a-z]', ' ', sentence.lower())
         return sentence.strip()
 
-def test_num_dataset():
-    dataset = Num2WordsDataset(end=100)
-    #next(dataset.gen_d(dataset.train,10,noise=0.4))
-    (x1,x2),y1=next(dataset.gen_g(dataset.train, 10,noise_std=2        ))
-    (x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 10, noise_std=2))
-    print (x1)
-    print (x2)
+
 
 
 def test_bible_dataset():
@@ -400,6 +400,14 @@ def test_bible_dataset():
 
     [x1, x2], y1 = next(dataset.gen_g(dataset.val, 64))
     assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
+
+def test_num_dataset():
+    dataset = Num2WordsDataset(end=10)
+    #next(dataset.gen_d(dataset.train,10,noise=0.4))
+    (x1,x2),y1=next(dataset.gen_g(dataset.train, batch_size=5, noise_std=2       ))
+    #(x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 100, noise_std=0))
+    print (x1)
+    print (x2)
 
 
 if __name__ == '__main__':

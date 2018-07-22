@@ -254,10 +254,10 @@ class D_G_Trainer():
         self.loss_history_adv = LossHistory()
 
     def train_g(self, steps, validation_steps=1, batch_size=64,noise_std=0.0):
-        self.model.g.fit_generator(self.dataset.gen_g(self.dataset.train, batch_size),
+        self.model.g.fit_generator(self.dataset.gen_g(self.dataset.train, batch_size,noise_std),
                                    steps,
                                    validation_steps=validation_steps,
-                                   validation_data=self.dataset.gen_g(self.dataset.val, batch_size,noise_std),
+                                   validation_data=self.dataset.gen_g(self.dataset.val, batch_size),
                                    callbacks=[self.loss_history],
                                    verbose=0 if steps < 10 else 1,
                                    max_queue_size=50,
@@ -332,7 +332,7 @@ class D_G_Trainer():
 
 def test():
     from dataset.bible import Num2WordsDataset
-    dataset = Num2WordsDataset(start=1, end=10 * 1000 * 1000)
+    dataset = Num2WordsDataset(start=1, end=5000) #remembers first 10% need to be bigger than batch_size
 
     model = D_G_Model(num_encoder_tokens=len(dataset.word2index),
                       num_decoder_tokens=len(dataset.word2index),  # from dataset 3628
@@ -343,7 +343,7 @@ def test():
                       adv_loss_weight=1.0, )
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
-    trainer.train_g(10, 1,noise_std=2)
+    trainer.train_g(10, 10,batch_size=10,noise_std=5) #very high value!!!
 
     print(trainer.eval_d( 10))
     print(trainer.eval_d_g( 10,))
