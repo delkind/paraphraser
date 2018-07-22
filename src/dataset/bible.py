@@ -284,9 +284,30 @@ class Num2WordsDataset(Dataset):
     def sample_batch(self, data, batch_size):
         sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
                           random.sample(range(*data), k=batch_size)))
+        #print (sample)
         max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
         return [self.pad_sentence(self.corpora[style][sent], max_len) for style, sent in
                 sample], [self.style2index[style] for style, _ in sample]
+
+    def nosiy_sample_batch(self, data, batch_size,noise_std=1.0):
+        """ noise is np.normal using that std (applying floor use 0.0 for no noise.
+         use noise_std of 1.0 if you want  67% to be 0, and some 1 and rarely 2
+        """
+        sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
+                          random.sample(range(*data), k=batch_size)))
+        normal_noise = np.random.normal(0,noise_std,len(sample))
+        noise_sample=[]
+        for i,(style,num) in enumerate(sample):
+            noise_sample.append( (style,num+ int(normal_noise[i])) )
+        results=[]
+        for sample in [sample,noise_sample]:
+            max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
+            res=[self.pad_sentence(self.corpora[style][sent], max_len) for style, sent in
+                    sample], [self.style2index[style] for style, _ in sample]
+            results.append(res)
+
+        return results
+
 
     def enc_input(self, batch):
         return np.array([s + [self.word2index[END_SYMBOL]] for s in batch], int)
@@ -294,13 +315,15 @@ class Num2WordsDataset(Dataset):
     def dec_input(self, batch, styles):
         return np.array([[self.word2index[style]] + s for (s, style) in zip(batch, styles)], int)
 
-    def gen_g(self, data_range, batch_size=64):
+    def gen_g(self, data_range, batch_size=64,noise_std=0.0):
         while True:
-            batch, styles = self.sample_batch(data_range, batch_size=batch_size)
-            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-            enc_input = self.enc_input(batch)
+            #batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+            (batch, styles),(batch_noise,styles_noise) = self.nosiy_sample_batch(data_range, batch_size=batch_size,noise_std=noise_std)
 
-            yield [self.enc_input(batch), dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
+            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+            enc_input = self.enc_input(batch_noise)
+            #print (batch) #end10 style11,12
+            yield [enc_input, dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
 
     def gen_d(self, data_range, batch_size=64, noise=0.0):
         """
@@ -318,13 +341,22 @@ class Num2WordsDataset(Dataset):
                 styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
             yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
 
-    def gen_adv(self, data_range, batch_size=64,noise=0.0):
+    def gen_adv(self, data_range, batch_size=64, style_noise=0.0, noise_std=0.0):
+        """
+        :param data_range:
+        :param batch_size:
+        :param style_noise: change style label . what probability to gflip (0-1) default 0
+        :param noise_std: noise on the input number. draw from normal dist. with noise_std (24 will be 25 if 1 drawn)
+        :return:
+        """
         while True:
-            batch, styles = self.sample_batch(data_range, batch_size=batch_size)
-            enc_input = self.enc_input(batch)
+            #batch, styles = self.sample_batch(data_range, batch_size=batch_size)
+            (batch, styles), (batch_noise, styles_noise) = self.nosiy_sample_batch(data_range, batch_size=batch_size,
+                                                                                   noise_std=noise_std)
+            enc_input = self.enc_input(batch_noise)
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-            if int(noise*batch_size)>0:
-                noise_ind = np.random.choice(range(batch_size), int(batch_size * noise), replace=False)
+            if int(style_noise*batch_size)>0:
+                noise_ind = np.random.choice(range(batch_size), int(batch_size * style_noise), replace=False)
                 styles = np.array(styles)
                 styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
 
@@ -337,8 +369,12 @@ class Num2WordsDataset(Dataset):
         return sentence.strip()
 
 def test_num_dataset():
-    dataset = Num2WordsDataset()
-    next(dataset.gen_d(dataset.train,10,noise=0.4))
+    dataset = Num2WordsDataset(end=100)
+    #next(dataset.gen_d(dataset.train,10,noise=0.4))
+    (x1,x2),y1=next(dataset.gen_g(dataset.train, 10,noise_std=2        ))
+    (x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 10, noise_std=2))
+    print (x1)
+    print (x2)
 
 
 def test_bible_dataset():
