@@ -253,20 +253,20 @@ class D_G_Trainer():
         self.loss_history_d = LossHistory()
         self.loss_history_adv = LossHistory()
 
-    def train_g(self, steps, validation_steps=1, batch_size=64):
+    def train_g(self, steps, validation_steps=1, batch_size=64,noise_std=0.0):
         self.model.g.fit_generator(self.dataset.gen_g(self.dataset.train, batch_size),
                                    steps,
                                    validation_steps=validation_steps,
-                                   validation_data=self.dataset.gen_g(self.dataset.val, batch_size),
+                                   validation_data=self.dataset.gen_g(self.dataset.val, batch_size,noise_std),
                                    callbacks=[self.loss_history],
                                    verbose=0 if steps < 10 else 1,
                                    max_queue_size=50,
                                    # workers=2
                                    )
 
-    def train_d_g(self, steps, validation_steps=1, batch_size=64,noise=0.0):
+    def train_d_g(self, steps, validation_steps=1, batch_size=64,noise=0.0,noise_std=0.0):
         self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
-        self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size,noise),
+        self.model.g_d.fit_generator(self.dataset.gen_adv(self.dataset.train, batch_size,noise,noise_std),
                                      steps,
                                      validation_steps=validation_steps,
                                      validation_data=self.dataset.gen_adv(self.dataset.val, batch_size),
@@ -343,7 +343,7 @@ def test():
                       adv_loss_weight=1.0, )
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
-    trainer.train_g(10, 1)
+    trainer.train_g(10, 1,noise_std=2)
 
     print(trainer.eval_d( 10))
     print(trainer.eval_d_g( 10,))
@@ -353,7 +353,7 @@ def test():
     print(trainer.eval_d_g(10))
 
     print('training d_g')
-    trainer.train_d_g(10, 1)
+    trainer.train_d_g(10, 1,noise_std=2)
     print(trainer.eval_d(10))
     print(trainer.eval_d_g(10))
     #trainer.train_d_g(50, 1)
