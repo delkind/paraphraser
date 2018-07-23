@@ -373,9 +373,10 @@ def test():
     trainer = D_G_Trainer(model, dataset)
 
     print ('train_g_cycle')
-    trainer.train_g(10, 10, batch_size=2, noise_std=5)  # very high value!!!
+
     trainer.train_g_cycle(10, 1, batch_size=10, noise_std=0)
 
+    trainer.train_g(10, 10, batch_size=2, noise_std=5)  # very high value!!!
 
 
     print(trainer.eval_d( 10))

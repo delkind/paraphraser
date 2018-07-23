@@ -13,17 +13,13 @@ class SamplingDecoder():
         print('unoptimzied decode_sequence_batch, running each of the N sample seperatly')
 
     def decode_sequence_batch(self, input_seq, style_token_array, max_decoder_seq_length, end_symbol, verbose=False):
-        result = np.full((input_seq.shape[0],max_decoder_seq_length),fill_value=end_symbol,dtype=np.float32)
-        #print ('result',result.shape,'max_decoder_seq_length',max_decoder_seq_length)
-
+        '''result = np.full((input_seq.shape[0],max_decoder_seq_length),fill_value=end_symbol,dtype=np.float32)
         for i in range(input_seq.shape[0]):
             p = self.decode_sequence(input_seq[i], style_token_array[i], max_decoder_seq_length, end_symbol, verbose)
-            #print (input_seq[i],len(input_seq[i]),'out',len(p),p)
-            # pad sequence
-            #print (p,[end_symbol]*2,['t']+['h','tt'])
-            #p = p + [end_symbol] * (max_decoder_seq_length - len(p))
             result[i,:len(p)] = p #np.array(p)
         return  result
+        '''
+        return self.decode_sequence(input_seq ,style_token_array, max_decoder_seq_length, end_symbol, verbose)
 
 
     # TODO: now it's greedy and use argmax
@@ -68,25 +64,26 @@ class SamplingDecoder():
                 print('output softmax, first 10', output_tokens[0, 0, :10])
 
             # Sample a token
-            sampled_token_index = np.argmax(output_tokens)  # [0, -1, :])
-            if verbose: print('sampled_token_index', sampled_token_index.shape, output_tokens.max(),
-                              sampled_token_index)
+            sampled_token_index = np.argmax(output_tokens,axis=-1)  # [0, -1, :])
+            if verbose: print('sampled_token_index', sampled_token_index.shape, output_tokens[0].max(),
+                              sampled_token_index[0])
+            #print ('sampled_token_index',output_tokens.shape, sampled_token_index.shape)
             decoded_sentence.append(sampled_token_index)
 
-            # Exit condition: either hit max length
-            # or find stop character.
-            if (sampled_token_index == end_symbol or
-                        len(decoded_sentence) >= max_decoder_seq_length):
+            # Exit condition: either hit max length or find stop character.
+            if len(decoded_sentence) >= max_decoder_seq_length: #(sampled_token_index == end_symbol or
                 stop_condition = True
 
-            # Update the target sequence (of length 1).
-            target_seq = np.zeros((1, 1))
-            target_seq[0, 0] = sampled_token_index
 
+            # Update the target sequence (of length 1).
+            target_seq = np.zeros((len(input_seq), 1))
+            #target_seq[0, 0] = sampled_token_index
+            target_seq = sampled_token_index
             # Update states
             states_value = [h, c]
 
-        res = np.array(decoded_sentence)  # [dataset.index2word[index] for index in decoded_sentence]
+        #res = np.array(decoded_sentence)  # [dataset.index2word[index] for index in decoded_sentence]
+        res = np.hstack(decoded_sentence)
         return res
 
     def show_sample(self, dataset, data_type='val', sample_ids=[], teacher_forcing=False):
@@ -185,9 +182,6 @@ def test():
     print(dataset.recostruct_sentence(p[1]))
     '''
 
-    print ('gen_cycle_g')
-    gen = dataset.gen_cycle_g(dataset.train,sampler=sampler,batch_size=10)
-    [x1,x2],y1= next(gen)
     '''
     print ('cycle x1',x1)
     print ('cycle x2',x2)
