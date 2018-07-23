@@ -47,6 +47,7 @@ class Dataset:
 
     @staticmethod
     def end_symbol():
+        """ as string """
         return END_SYMBOL
 
     def create_mapping(self, corpora):
@@ -270,7 +271,12 @@ class Num2WordsDataset(Dataset):
         self.train = (self.test[1], self.val[1] + train_count)
 
         longest_num = int('9' * len(str(end - 1)))
+
         self.max_sentence_length = max([len(corpus[longest_num]) for corpus in self.corpora.values()])
+
+
+
+
 
     def sentence2indexes(self, sentence):
         return [self.word2index[seg] for seg in sentence]
@@ -281,21 +287,25 @@ class Num2WordsDataset(Dataset):
     def recostruct_sentence(self, sentence):
         return ' '.join([self.index2word[seg] for seg in sentence])
 
-    def sample_batch(self, data, batch_size):
-        print (data,batch_size)
+    def sample_batch(self, data, batch_size, ):
         sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
                           random.sample(range(*data), k=batch_size)))
-        #print (sample)
+
         max_len = max([len(self.corpora[style][sent]) for style, sent in sample])
         return [self.pad_sentence(self.corpora[style][sent], max_len) for style, sent in
                 sample], [self.style2index[style] for style, _ in sample]
 
-    def nosiy_sample_batch(self, data, batch_size,noise_std=1.0):
+    def noisy_sample_batch(self, data, batch_size, one_style_only=None, noise_std=1.0):
         """ noise is np.normal using that std (applying floor use 0.0 for no noise.
          use noise_std of 1.0 if you want  67% to be 0, and some 1 and rarely 2
         """
-        sample = list(zip(random.choices(list(self.corpora.keys()), k=batch_size),
-                          random.sample(range(*data), k=batch_size)))
+        if one_style_only:
+            styles = [one_style_only] *batch_size
+        else:
+            styles = random.choices(list(self.corpora.keys()), k=batch_size)
+
+        sample = list(zip(styles, random.sample(range(*data), k=batch_size)))
+
         normal_noise = np.random.normal(0,noise_std,len(sample))
         noise_sample=[]
         for i,(style,num) in enumerate(sample):
@@ -321,10 +331,15 @@ class Num2WordsDataset(Dataset):
     def dec_input(self, batch, styles):
         return np.array([[self.word2index[style]] + s for (s, style) in zip(batch, styles)], int)
 
+
+
+
+
     def gen_g(self, data_range, batch_size=64,noise_std=0.0):
+        assert type(batch_size)==int
         while True:
             #batch, styles = self.sample_batch(data_range, batch_size=batch_size)
-            (batch, styles),(batch_noise,styles_noise) = self.nosiy_sample_batch(data_range, batch_size=batch_size,noise_std=noise_std)
+            (batch, styles),(batch_noise,styles_noise) = self.noisy_sample_batch(data_range, batch_size=batch_size, noise_std=noise_std)
 
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
             enc_input = self.enc_input(batch_noise)
@@ -357,7 +372,7 @@ class Num2WordsDataset(Dataset):
         """
         while True:
             #batch, styles = self.sample_batch(data_range, batch_size=batch_size)
-            (batch, styles), (batch_noise, styles_noise) = self.nosiy_sample_batch(data_range, batch_size=batch_size,
+            (batch, styles), (batch_noise, styles_noise) = self.noisy_sample_batch(data_range, batch_size=batch_size,
                                                                                    noise_std=noise_std)
             enc_input = self.enc_input(batch_noise)
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
@@ -402,12 +417,16 @@ def test_bible_dataset():
     assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
 
 def test_num_dataset():
-    dataset = Num2WordsDataset(end=10)
+    dataset = Num2WordsDataset(end=5000)
+    print (dataset.max_sentence_length) #one hundred nighty nine
     #next(dataset.gen_d(dataset.train,10,noise=0.4))
     (x1,x2),y1=next(dataset.gen_g(dataset.train, batch_size=5, noise_std=2       ))
     #(x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 100, noise_std=0))
     print (x1)
     print (x2)
+
+
+
 
 
 if __name__ == '__main__':

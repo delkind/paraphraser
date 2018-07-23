@@ -5,7 +5,8 @@ from keras.layers import Input, LSTM, Dense, Embedding,CuDNNLSTM,Bidirectional,C
 from keras import backend as K
 from keras.optimizers import  Adam,SGD
 import matplotlib.pyplot as plt
-
+from decoder import SamplingDecoder
+from gen_wrapper import cycle
 
 class D_G_Model:
     """
@@ -22,6 +23,8 @@ class D_G_Model:
     (3) The smart-part: We want to train the encoder to create an embedding which will fool the discriminator.
     We will freeze the discriminator weights, and train the encoder-decoder similiarly to (1) with extra objective.
     That the loss from the discriminator will be Maximized.
+
+    TODO: cycle-loss? on input s1, run encoder-decoder and sample result s2. use this as input-s2 , label s1
     """
 
     def __init__(self, num_encoder_tokens,
@@ -248,6 +251,7 @@ class LossHistory(keras.callbacks.Callback):
 class D_G_Trainer():
     def __init__(self, model, dataset):
         self.model = model
+        self.sampler = SamplingDecoder(self.model)
         self.dataset = dataset
         self.loss_history = LossHistory()
         self.loss_history_d = LossHistory()
@@ -263,6 +267,30 @@ class D_G_Trainer():
                                    max_queue_size=50,
                                    # workers=2
                                    )
+
+    def train_g_cycle(self, steps, validation_steps=1, batch_size=64,noise_std=0.0):
+
+        style_tokens = np.array([self.dataset.word2index[style] for style in self.dataset.style2index.keys()])
+        end_symbol_index = self.dataset.word2index[self.dataset.end_symbol()]
+        max_sampled_sentence_len = self.dataset.max_sentence_length
+
+        train_gen = self.dataset.gen_g(self.dataset.train, batch_size, noise_std)
+        validation_gen = self.dataset.gen_g(self.dataset.val,  batch_size)
+        cycle_train_gen= cycle(train_gen,self.sampler,style_tokens,end_symbol_index,max_sampled_sentence_len)
+        #DUE TO WIERD BUG, YOU MUST RUN ONE next() OUTSIDE THE TRAINER
+        [x1, x2], y1 = next(cycle_train_gen)
+
+        self.model.g.fit_generator(cycle_train_gen,
+                                   steps,
+                                   validation_steps=validation_steps,
+                                   validation_data=cycle(validation_gen,self.sampler,style_tokens,end_symbol_index,max_sampled_sentence_len),
+                                   callbacks=[self.loss_history],
+                                   verbose=0 if steps < 10 else 1,
+                                   max_queue_size=50,
+                                                                      )
+
+
+
 
     def train_d_g(self, steps, validation_steps=1, batch_size=64,noise=0.0,noise_std=0.0):
         self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
@@ -343,7 +371,12 @@ def test():
                       adv_loss_weight=1.0, )
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
-    trainer.train_g(10, 10,batch_size=10,noise_std=5) #very high value!!!
+
+    print ('train_g_cycle')
+    trainer.train_g(10, 10, batch_size=2, noise_std=5)  # very high value!!!
+    trainer.train_g_cycle(10, 1, batch_size=10, noise_std=0)
+
+
 
     print(trainer.eval_d( 10))
     print(trainer.eval_d_g( 10,))
@@ -354,10 +387,11 @@ def test():
 
     print('training d_g')
     trainer.train_d_g(10, 1,noise_std=2)
-    print(trainer.eval_d(10))
-    print(trainer.eval_d_g(10))
+    print('eval_d',trainer.eval_d(10))
+    print('eval_d_g',trainer.eval_d_g(10))
     #trainer.train_d_g(50, 1)
     #trainer.plt_all()
+
 
 
 if __name__=='__main__':

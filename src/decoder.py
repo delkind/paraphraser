@@ -8,8 +8,23 @@ class SamplingDecoder():
       It will be used to sample results(currently greedy)
     """
 
-    def __init__(self, model_g_d, END_SYMBOL = '<end>'):
+    def __init__(self, model_g_d,):
         self.model_g_d = model_g_d
+        print('unoptimzied decode_sequence_batch, running each of the N sample seperatly')
+
+    def decode_sequence_batch(self, input_seq, style_token_array, max_decoder_seq_length, end_symbol, verbose=False):
+        result = np.full((input_seq.shape[0],max_decoder_seq_length),fill_value=end_symbol,dtype=np.float32)
+        #print ('result',result.shape,'max_decoder_seq_length',max_decoder_seq_length)
+
+        for i in range(input_seq.shape[0]):
+            p = self.decode_sequence(input_seq[i], style_token_array[i], max_decoder_seq_length, end_symbol, verbose)
+            #print (input_seq[i],len(input_seq[i]),'out',len(p),p)
+            # pad sequence
+            #print (p,[end_symbol]*2,['t']+['h','tt'])
+            #p = p + [end_symbol] * (max_decoder_seq_length - len(p))
+            result[i,:len(p)] = p #np.array(p)
+        return  result
+
 
     # TODO: now it's greedy and use argmax
     # maybe to choose randomly by distribution
@@ -17,21 +32,28 @@ class SamplingDecoder():
     def decode_sequence(self, input_seq, style_token, max_decoder_seq_length, end_symbol, verbose=False):
         """ input_seq as array of tokens of shape 1,SIZE why? TODO: fix
             style  as string  ('<bbe>')
+
+            style_token should be token(float) , you can get it using dataset.word2index[replaced_style]
         """
         if len(input_seq.shape) == 1:
             input_seq = input_seq.reshape(1, -1)  # now it's 1,N
+        assert type(style_token)!= str
+
 
         if verbose: print('input_seq', input_seq.shape, 'first 10', input_seq[0][:10])
         # Encode the input as state vectors.
+        input_seq = np.asarray(input_seq,np.float32)
+        #print ('input_seq',input_seq.shape,input_seq.dtype)
+
         states_value = self.model_g_d.encoder_model.predict(input_seq)
         if verbose: print('encoder result states_value', 'h', states_value[0].shape, states_value[0].mean(), 'c',
                           states_value[1].shape, states_value[1].mean())
 
         # Generate empty target sequence of length 1.
         #                      batch,word-number value is token (0 /122)
-        target_seq = np.zeros((1, 1))
+        target_seq = np.zeros((input_seq.shape[0], 1))
         # Populate the first character of target sequence with the start character.
-        target_seq[0, 0] = style_token
+        target_seq[:, 0] = style_token
         if verbose: print('target_seq', target_seq)
 
         # Sampling loop for a batch of sequences
@@ -54,7 +76,7 @@ class SamplingDecoder():
             # Exit condition: either hit max length
             # or find stop character.
             if (sampled_token_index == end_symbol or
-                        len(decoded_sentence) > max_decoder_seq_length):
+                        len(decoded_sentence) >= max_decoder_seq_length):
                 stop_condition = True
 
             # Update the target sequence (of length 1).
@@ -133,3 +155,49 @@ class SamplingDecoder():
             print('2. also check for sample range, if you used val with large sample, mabe it is out of range?')
             import traceback
             traceback.print_exc()
+
+def test():
+    from dataset.bible import Num2WordsDataset
+    from models import D_G_Model
+    dataset = Num2WordsDataset(start=1, end=200)  # remembers first 10% need to be bigger than batch_size
+
+    model = D_G_Model(num_encoder_tokens=len(dataset.word2index),
+                      num_decoder_tokens=len(dataset.word2index),  # from dataset 3628
+                      style_out_size=len(dataset.style2index),  # from dataset 2
+                      cuddlstm=False,
+                      latent_dim=64,  # twice the default. make it stronger! but slower
+                      bidi_encoder=False,
+                      adv_loss_weight=1.0, )
+    model.build_all()
+    sampler = SamplingDecoder(model)
+
+    #'<num>' '<wrd>'
+    ''' gen = dataset.gen_g(dataset.train,batch_size=2)
+    (x1,x2),y1= next(gen)
+    max_decoder_seq_length = x1.shape[1] + 1  # always pad one
+    print ('x1[0]',dataset.recostruct_sentence(x1[0]))
+    print ('x1[1]',dataset.recostruct_sentence(x1[1]))
+    max_decoder_seq_length = dataset.max_sentence_length + 1
+    p = sampler.decode_sequence_batch(x1, dataset.word2index['<num>'], max_decoder_seq_length,
+                              dataset.word2index[dataset.end_symbol()], verbose=False)
+    print('p',p.shape,p.dtype,p)
+    print(dataset.recostruct_sentence(p[0]))
+    print(dataset.recostruct_sentence(p[1]))
+    '''
+
+    print ('gen_cycle_g')
+    gen = dataset.gen_cycle_g(dataset.train,sampler=sampler,batch_size=10)
+    [x1,x2],y1= next(gen)
+    '''
+    print ('cycle x1',x1)
+    print ('cycle x2',x2)
+    print ('x1[0]', x1[0], dataset.recostruct_sentence(x1[0]))
+    print ('x1[1]', x1[1], dataset.recostruct_sentence(x1[1]))
+    print ('x2[0]', x2[0], dataset.recostruct_sentence(x2[0]))
+    print ('x2[1]', x2[1], dataset.recostruct_sentence(x2[1]))
+    '''
+
+
+
+if __name__=='__main__':
+    test()
