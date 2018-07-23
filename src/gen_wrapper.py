@@ -32,7 +32,7 @@ def cycle( internal_gen, sampler, styles_indecies,end_symbol_index,max_sampled_s
         sampled_input = sampler.decode_sequence_batch(x1, random_style_tokens, max_sampled_sentence_len , end_symbol_index)
 
         #print(x1.shape, x2.shape, y1.shape, 'max_sentence_length', self.max_sentence_length, np.max(x1), np.max(x2))
-        yield [x1,x2],y
+        yield [sampled_input,x2],y
 
 '''
 def gen_cycle_g(self, data_range, sampler, batch_size=64, noise_std=0.0):
