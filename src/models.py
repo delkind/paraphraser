@@ -200,7 +200,7 @@ class D_G_Model:
             # if discriminator is great, 99%, log-loss close to 0 , so 1/0 is big.
             # so expeceted range is GREAT=1 , BAD=BIGGG
             #return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.01) #is it too-much?
-            gold = K.constant(0.5, shape=K.int_shape(y_pred))
+            gold = K.constant(0.5, shape=K.int_shape(y_pred)) + y_true * 0 
             return K.binary_crossentropy(gold, y_pred) + np.log(0.5)
 
         classifier_head = self.build_d()
