@@ -192,7 +192,9 @@ class BibleDataset(Dataset):
 
 
 
-    def gen_g(self, data_range, batch_size=64):
+    def gen_g(self, data_range, batch_size=64, noise_std=0.0):
+        """noise_std ignored for now. for compatability with num2word dataset
+        """
         cluster, data = self.__generate_data__(data_range)
         while True:
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
@@ -248,11 +250,12 @@ class BibleDataset(Dataset):
 
 
 
-
+def test_bible_dataset():
+    ds = dataset = BibleDataset(["ylt", "bbe"],base_url=URL_ROOT, suffix=CSV_EXT)
 
 
 
 if __name__ == '__main__':
     pass
-    # test_bible_dataset()
+    test_bible_dataset()
 
