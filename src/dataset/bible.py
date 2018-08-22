@@ -202,13 +202,13 @@ class BibleDataset(Dataset):
             enc_input = self.enc_input(batch)
             yield [enc_input, dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
 
-    def gen_d(self, data_range, batch_size=64):
+    def gen_d(self, data_range, batch_size=64 , noise_std=0.0):
         cluster, data = self.__generate_data__(data_range)
         while True:
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
             yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
 
-    def gen_adv(self, data_range, batch_size=64):
+    def gen_adv(self, data_range, batch_size=64,style_noise=0.0, noise_std=0.0):
         cluster, data = self.__generate_data__(data_range)
         while True:
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
