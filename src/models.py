@@ -193,13 +193,15 @@ class D_G_Model:
                   loss='categorical_crossentropy', metrics=['accuracy'])
 
         # train_d(d,50) # TRAINING WELL alone , had used wrong names for models
-
+        from keras import backend as K
         def inverse_categorical_crossentropy(y_true, y_pred):
             # need to implement it better , sum(1/categorical_crossentropy_per_sample)
             # if discriminator is random, on 2 styles, if expect 50% which should mean logloss of 1. so 1/1= 1
             # if discriminator is great, 99%, log-loss close to 0 , so 1/0 is big.
             # so expeceted range is GREAT=1 , BAD=BIGGG
-            return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.01) #is it too-much?
+            #return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.01) #is it too-much?
+            gold = K.constant(0.5, shape=K.int_shape(y_pred))
+            return K.binary_crossentropy(gold, y_pred) + np.log(0.5)
 
         classifier_head = self.build_d()
         adv_d_out = classifier_head(encoder_model(encoder_inputs))  # encoder_model,encoder_inputs)
@@ -210,8 +212,8 @@ class D_G_Model:
         g_d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
                     loss=['categorical_crossentropy', inverse_categorical_crossentropy],
                     loss_weights=[1, self.adv_loss_weight])
-        optimizer_clip_value = 0.5,
-        optimizer_clip_norm = 1.0
+        #optimizer_clip_value = 0.5,
+        #optimizer_clip_norm = 1.0
 
 
         self.encoder_model = encoder_model
