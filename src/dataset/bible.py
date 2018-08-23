@@ -9,7 +9,7 @@ import numpy as np
 from keras.utils.data_utils import get_file
 from keras.utils import to_categorical
 from itertools import product
-import num2words
+
 
 END_SYMBOL = '<end>'
 START_SYMBOL = '<start>'

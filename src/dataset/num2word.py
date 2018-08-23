@@ -1,4 +1,6 @@
+import num2words
 from dataset.bible import *
+
 
 class NumSentenceGen(object):
     def __init__(self, rng, indexer):
