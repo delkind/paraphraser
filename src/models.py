@@ -212,7 +212,7 @@ class D_G_Model:
         classifier_head.trainable = False
 
         g_d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
-                    loss=['category_crossentropy', inverse_categorical_crossentropy],
+                    loss=['categorical_crossentropy', inverse_categorical_crossentropy],
                     loss_weights=[1, self.adv_loss_weight])
         #optimizer_clip_value = 0.5,
         #optimizer_clip_norm = 1.0
@@ -364,11 +364,11 @@ class D_G_Trainer():
 
 
 def test():
-    #from dataset.num2word import Num2WordsDataset
-    #dataset = Num2WordsDataset(start=1, end=5000) #remembers first 10% need to be bigger than batch_size
+    from dataset.num2word import Num2WordsDataset
+    dataset = Num2WordsDataset(start=1, end=5000) #remembers first 10% need to be bigger than batch_size
 
-    from dataset.bible import URL_ROOT,CSV_EXT,BibleDataset
-    dataset = BibleDataset(["ylt", "bbe"], base_url=URL_ROOT, suffix=CSV_EXT)
+    #from dataset.bible import URL_ROOT,CSV_EXT,BibleDataset
+    #dataset = BibleDataset(["ylt", "bbe"], base_url=URL_ROOT, suffix=CSV_EXT)
     #b= (next(dataset.gen_adv(dataset.train,13)))
 
 
