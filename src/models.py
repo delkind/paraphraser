@@ -168,7 +168,7 @@ class D_G_Model:
             d__a)  # a = keras.layers.LeakyReLU()(a) #LeakyReLU  #why leaky? see: how to train your GAN - BUT IT FAILED TO LEARN (accuracy always 0.5)
         d__a = Dropout(0.1, name='d__dropout2')(d__a)
         #d__style_outputs = Dense(self.style_out_size, activation='softmax', name='d__dense_softmax')(d__a)
-        d__style_outputs = Dense(1, activation='sigmoid', name='d__dense_softmax')(d__a)
+        d__style_outputs = Dense(1, activation='sigmoid', name='d__dense_sigmoid')(d__a)
 
         # d = Model(d_inputs,style_outputs)
         # d = Model(d__encoder_inputs,d__style_outputs)  #style_outputs : batch , one-hot-encoding-of-style
@@ -212,7 +212,7 @@ class D_G_Model:
         classifier_head.trainable = False
 
         g_d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
-                    loss=['binary_crossentropy', inverse_categorical_crossentropy],
+                    loss=['category_crossentropy', inverse_categorical_crossentropy],
                     loss_weights=[1, self.adv_loss_weight])
         #optimizer_clip_value = 0.5,
         #optimizer_clip_norm = 1.0
@@ -355,6 +355,7 @@ class D_G_Trainer():
         plt.figure(figsize=(14, 4))
         plt.subplot(131)  # numrows, numcols, fignum
         D_G_Trainer.plt_losses(self.loss_history, 'g loss', with_val)
+
         plt.subplot(132)
         D_G_Trainer.plt_losses(self.loss_history_d, 'd loss', with_val)
         plt.subplot(133)
