@@ -1,4 +1,4 @@
-from bible import *
+from dataset.bible import *
 
 class NumSentenceGen(object):
     def __init__(self, rng, indexer):
@@ -145,7 +145,9 @@ class Num2WordsDataset(Dataset):
                 noise_ind = np.random.choice(range(batch_size), int(batch_size * noise), replace=False)
                 styles = np.array(styles)
                 styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
-            yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
+                #print (styles.shape,styles)
+            # ONLY SUPPORT 1 OR 0
+            yield self.enc_input(batch), styles #to_categorical(styles, len(self.corpora)).astype(int)
 
     def gen_adv(self, data_range, batch_size=64, style_noise=0.0, noise_std=0.0):
         """
@@ -153,7 +155,7 @@ class Num2WordsDataset(Dataset):
         :param batch_size:
         :param style_noise: change style label . what probability to gflip (0-1) default 0
         :param noise_std: noise on the input number. draw from normal dist. with noise_std (24 will be 25 if 1 drawn)
-        :return:
+        :return: tuple : (enc_input, dec_input) (one-hot enc_input ,  styles)
         """
         while True:
             #batch, styles = self.sample_batch(data_range, batch_size=batch_size)
@@ -161,14 +163,17 @@ class Num2WordsDataset(Dataset):
                                                                                    noise_std=noise_std)
             enc_input = self.enc_input(batch_noise)
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
+            #print(len(styles),len(batch))
             if int(style_noise*batch_size)>0:
                 noise_ind = np.random.choice(range(batch_size), int(batch_size * style_noise), replace=False)
                 styles = np.array(styles)
+                #print(styles.shape,styles)
                 styles[noise_ind]  = np.random.random_integers(0,len(self.style2index)-1,len(noise_ind))
-
+            #print (enc_input.shape)
             yield [enc_input, dec_input], \
                   [to_categorical(enc_input, len(self.word2index)).astype(int),
-                   to_categorical(styles, len(self.corpora)).astype(int)]
+                   np.array(styles) #to_categorical(styles, len(self.corpora)).astype(int)
+                   ]
 
     def normalize(self, sentence):
         sentence = re.sub('[^ a-z]', ' ', sentence.lower())

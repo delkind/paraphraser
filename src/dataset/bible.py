@@ -206,7 +206,8 @@ class BibleDataset(Dataset):
         cluster, data = self.__generate_data__(data_range)
         while True:
             batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
-            yield self.enc_input(batch), to_categorical(styles, len(self.corpora)).astype(int)
+            #Only support 2 styles (0 or 1)
+            yield self.enc_input(batch), styles#to_categorical(styles, len(self.corpora)).astype(int)
 
     def gen_adv(self, data_range, batch_size=64,style_noise=0.0, noise_std=0.0):
         cluster, data = self.__generate_data__(data_range)
@@ -216,7 +217,8 @@ class BibleDataset(Dataset):
             dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
             yield [enc_input, dec_input], \
                   [to_categorical(enc_input, len(self.word2index)).astype(int),
-                   to_categorical(styles, len(self.corpora)).astype(int)]
+                   np.array(styles) # to_categorical(styles, len(self.corpora)).astype(int)
+                   ]
 
     def __generate_data__(self, data_range):
         cluster = np.random.choice(list(self.clusters.keys()), 1,

@@ -167,7 +167,8 @@ class D_G_Model:
         d__a = Dense(100, activation='relu', name='d__dense1')(
             d__a)  # a = keras.layers.LeakyReLU()(a) #LeakyReLU  #why leaky? see: how to train your GAN - BUT IT FAILED TO LEARN (accuracy always 0.5)
         d__a = Dropout(0.1, name='d__dropout2')(d__a)
-        d__style_outputs = Dense(self.style_out_size, activation='softmax', name='d__dense_softmax')(d__a)
+        #d__style_outputs = Dense(self.style_out_size, activation='softmax', name='d__dense_softmax')(d__a)
+        d__style_outputs = Dense(1, activation='sigmoid', name='d__dense_softmax')(d__a)
 
         # d = Model(d_inputs,style_outputs)
         # d = Model(d__encoder_inputs,d__style_outputs)  #style_outputs : batch , one-hot-encoding-of-style
@@ -190,7 +191,7 @@ class D_G_Model:
         d_classifier_head = self.build_d()
         d = Model(encoder_inputs, d_classifier_head(d_encoder_model(encoder_inputs)))
         d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
-                  loss='categorical_crossentropy', metrics=['accuracy'])
+                  loss='binary_crossentropy', metrics=['accuracy'])
 
         # train_d(d,50) # TRAINING WELL alone , had used wrong names for models
         from keras import backend as K
@@ -200,7 +201,8 @@ class D_G_Model:
             # if discriminator is great, 99%, log-loss close to 0 , so 1/0 is big.
             # so expeceted range is GREAT=1 , BAD=BIGGG
             #return 1 / (K.categorical_crossentropy(y_true, y_pred) + 0.01) #is it too-much?
-            gold = K.constant(0.5, shape=K.int_shape(y_pred)) + y_true * 0 
+            gold = K.ones_like(y_pred) * 0.5
+            #gold = K.constant(0.5, shape=(shape[0],1))#(32,1) + y_true * 0  (K.int_shape(y_pred))
             return K.binary_crossentropy(gold, y_pred) + np.log(0.5)
 
         classifier_head = self.build_d()
@@ -210,7 +212,7 @@ class D_G_Model:
         classifier_head.trainable = False
 
         g_d.compile(optimizer=Adam(clipnorm=self.optimizer_clip_norm,clipvalue=self.optimizer_clip_value),
-                    loss=['categorical_crossentropy', inverse_categorical_crossentropy],
+                    loss=['binary_crossentropy', inverse_categorical_crossentropy],
                     loss_weights=[1, self.adv_loss_weight])
         #optimizer_clip_value = 0.5,
         #optimizer_clip_norm = 1.0
@@ -320,7 +322,7 @@ class D_G_Trainer():
         self.model.d_encoder_model.set_weights(self.model.encoder_model.get_weights())
         return self.model.d.evaluate_generator(self.dataset.gen_d(self.dataset.train),
                                           steps,
-                                          )
+                                          )  # NOW ONE STYLE 0.5 AS FIRST OR SECOND
 
     def eval_d_g(self, steps ):
         self.model.classifier_head.set_weights(self.model.d_classifier_head.get_weights())
@@ -361,8 +363,13 @@ class D_G_Trainer():
 
 
 def test():
-    from dataset.bible import Num2WordsDataset
-    dataset = Num2WordsDataset(start=1, end=5000) #remembers first 10% need to be bigger than batch_size
+    #from dataset.num2word import Num2WordsDataset
+    #dataset = Num2WordsDataset(start=1, end=5000) #remembers first 10% need to be bigger than batch_size
+
+    from dataset.bible import URL_ROOT,CSV_EXT,BibleDataset
+    dataset = BibleDataset(["ylt", "bbe"], base_url=URL_ROOT, suffix=CSV_EXT)
+    #b= (next(dataset.gen_adv(dataset.train,13)))
+
 
     model = D_G_Model(num_encoder_tokens=len(dataset.word2index),
                       num_decoder_tokens=len(dataset.word2index),  # from dataset 3628
@@ -373,6 +380,11 @@ def test():
                       adv_loss_weight=1.0, )
     model.build_all()
     trainer = D_G_Trainer(model, dataset)
+
+
+
+    # self.model.d.evaluate_generator(self.dataset.gen_d(self.dataset.train),        steps,         )  # NOW ON
+
 
     print ('train_g_cycle')
 
