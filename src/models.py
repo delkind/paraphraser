@@ -155,6 +155,7 @@ class D_G_Model:
 
         return decoder_teacher_forcing_model, decoder_sampling_model
 
+
     def build_d(self):  # encoder_model,d__encoder_inputs):
         # IN on the sentnece embedding itself )list of h,c]
         # Out style embedding
@@ -272,7 +273,8 @@ class D_G_Trainer():
                                    # workers=2
                                    )
 
-    def train_g_cycle(self, steps, validation_steps=1, batch_size=64,noise_std=0.0):
+    """
+    def train_g_cycle_old(self, steps, validation_steps=1, batch_size=64,noise_std=0.0):
 
         style_tokens = np.array([self.dataset.word2index[style] for style in self.dataset.style2index.keys()])
         end_symbol_index = self.dataset.word2index[self.dataset.end_symbol()]
@@ -290,9 +292,32 @@ class D_G_Trainer():
                                    validation_data=cycle(validation_gen,self.sampler,style_tokens,end_symbol_index,max_sampled_sentence_len),
                                    callbacks=[self.loss_history],
                                    verbose=0 if steps < 10 else 1,
-                                   max_queue_size=50,
-                                                                      )
+                                   max_queue_size=50, )
+    """
+    def train_g_cycle(self, steps, validation_steps=1, batch_size=64, noise_std=0.0):
+        """ original  : x=s0, y= one-hot=s0 , style=0
+        encode+decoder: x=^s1, y= one-hot=s0(from-before), style=0
+        """
 
+        style_tokens = np.array([self.dataset.word2index[style] for style in self.dataset.style2index.keys()])
+        end_symbol_index = self.dataset.word2index[self.dataset.end_symbol()]
+        max_sampled_sentence_len = self.dataset.max_sentence_length
+
+        train_gen = self.dataset.gen_adv(self.dataset.train, batch_size, noise_std)
+        validation_gen = self.dataset.gen_adv(self.dataset.val, batch_size)
+        cycle_train_gen = cycle(train_gen, self.sampler, style_tokens, end_symbol_index, max_sampled_sentence_len)
+        # DUE TO WIERD BUG, YOU MUST RUN ONE next() OUTSIDE THE TRAINER
+        [x1, x2], y1 = next(cycle_train_gen)
+
+        self.model.g_d.fit_generator(cycle_train_gen,
+                                   steps,
+                                   validation_steps=validation_steps,
+                                   validation_data=cycle(validation_gen, self.sampler, style_tokens, end_symbol_index,
+                                                         max_sampled_sentence_len),
+                                   callbacks=[self.loss_history],
+                                   verbose=0 if steps < 10 else 1,
+                                   max_queue_size=50,
+                                   )
 
 
 
@@ -389,7 +414,7 @@ def test():
 
     print ('train_g_cycle')
 
-    trainer.train_g_cycle(10, 1, batch_size=10, noise_std=0)
+    trainer.train_g_cycle(10, 1, batch_size=1, noise_std=0)
 
     trainer.train_g(10, 10, batch_size=2, noise_std=5)  # very high value!!!
 
