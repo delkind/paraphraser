@@ -1,5 +1,5 @@
 import num2words
-from bible import *
+from dataset.bible import *
 
 
 class NumSentenceGen(object):
