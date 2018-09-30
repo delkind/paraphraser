@@ -1,11 +1,19 @@
 import num2words
-from dataset.bible import *
+from bible import *
 
 
 class NumSentenceGen(object):
-    def __init__(self, rng, indexer):
+    def __init__(self, rng, indexer,use_num_names):
+        """
+
+        :param rng:
+        :param indexer:
+        :param use_num_names: instead of returing '1 2' return 'one two'
+        """
         self.range = rng
         self.indexer = indexer
+        self.word_producer = num2words.lang_EN.Num2Word_EN()
+        self.use_num_names = use_num_names
 
     def __getitem__(self, item):
         if type(item) == int:
@@ -19,12 +27,16 @@ class NumSentenceGen(object):
         return len(self.range)
 
     def __get_sentence__(self, number):
-        return list(str(number))
+        digits = list(str(number))
 
+        if self.use_num_names:
+            return  [self.word_producer.to_cardinal(int(digit)) for digit in digits]
+        else:
+            return digits
 
 class NumWordedSentenceGen(NumSentenceGen):
     def __init__(self, rng, indexer, normalizer):
-        super().__init__(rng, indexer)
+        super().__init__(rng, indexer,False)
         self.normalizer = normalizer
         self.word_producer = num2words.lang_EN.Num2Word_EN()
 
@@ -33,11 +45,11 @@ class NumWordedSentenceGen(NumSentenceGen):
 
 
 class Num2WordsDataset(Dataset):
-    def __init__(self, start=1, end=1000000, test_split=0.1, validation_split=0.1):
+    def __init__(self, start=1, end=1000000, test_split=0.1, validation_split=0.1,use_num_names=False):
         super().__init__()
         self.range = range(start, end)
         indexer = lambda s: self.sentence2indexes(s)
-        self.corpora = {'<num>': NumSentenceGen(range(start, end), indexer=indexer),
+        self.corpora = {'<num>': NumSentenceGen(range(start, end), indexer=indexer,use_num_names= use_num_names),
                         '<wrd>': NumWordedSentenceGen(range(start, end), indexer=indexer,
                                                       normalizer=lambda s: self.normalize(s))}
         numbers = list('0123456789')
@@ -207,13 +219,16 @@ def test1():
     assert np.allclose(np.argmax(y1[0][:10], axis=1), x1[0][:10])
 
 def test2():
-    dataset = Num2WordsDataset(end=5000)
-    print (dataset.max_sentence_length) #one hundred nighty nine
-    #next(dataset.gen_d(dataset.train,10,noise=0.4))
-    (x1,x2),y1=next(dataset.gen_g(dataset.train, batch_size=5, noise_std=2       ))
-    #(x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 100, noise_std=0))
-    print (x1)
-    print (x2)
+    for dataset in [Num2WordsDataset(end=5000), Num2WordsDataset(end=5000,use_num_names=True)]:
+        print (dataset.max_sentence_length) #one hundred nighty nine
+        #next(dataset.gen_d(dataset.train,10,noise=0.4))
+        (x1,x2),y1=next(dataset.gen_g(dataset.train, batch_size=5, noise_std=2       ))
+        #(x1, x2), (y1,y2) = next(dataset.gen_adv(dataset.train, 100, noise_std=0))
+        print (dataset.recostruct_sentence(x1[0]))
+        print (dataset.recostruct_sentence(x2[0]))
+
+
+
 
 if __name__ == '__main__':
     test2()
