@@ -9,3 +9,8 @@ matplotlib
 tensorflow
 keras
 spacy
+scikit-learn
+nltk >= 3
+h5py
+torch
+torchvision
