@@ -1,3 +1,4 @@
+requests
 num2words
 termcolor
 google

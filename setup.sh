@@ -10,5 +10,11 @@ unzip InferSent/dataset/fastText/crawl-300d-2M.vec.zip -d InferSent/dataset/fast
 cd InferSent/dataset
 ./get_data.bash
 cd ../..
-LC_ALL=en_US.UTF-8 LC_ALL=en_US.UTF-8 python setup.py
+virtualenv --python=python3 .env
+pip install -r requirements.txt
+cd keras-tcn
+pip install . --upgrade
+LC_ALL=en_US.UTF-8
+LC_ALL=en_US.UTF-8
+python setup.py
 

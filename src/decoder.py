@@ -154,8 +154,8 @@ class SamplingDecoder():
             traceback.print_exc()
 
 def test():
-    from dataset.bible import Num2WordsDataset
-    from models import D_G_Model
+    from src.dataset.num2word import Num2WordsDataset
+    from src.models import D_G_Model
     dataset = Num2WordsDataset(start=1, end=200)  # remembers first 10% need to be bigger than batch_size
 
     model = D_G_Model(num_encoder_tokens=len(dataset.word2index),

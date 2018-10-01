@@ -1,15 +1,13 @@
 import codecs
 import csv
-import math
 import random
 import re
 from collections import Counter
+from nltk.tokenize import word_tokenize
 
 import numpy as np
-from keras.utils.data_utils import get_file
 from keras.utils import to_categorical
-from itertools import product
-
+from keras.utils.data_utils import get_file
 
 END_SYMBOL = '<end>'
 START_SYMBOL = '<start>'
@@ -47,7 +45,6 @@ class Dataset:
 
     @staticmethod
     def end_symbol():
-        """ as string """
         return END_SYMBOL
 
     def create_mapping(self, corpora):
@@ -56,10 +53,11 @@ class Dataset:
         oov = [c for (_, c) in frequencies if c <= MIN_FREQ]
         frequencies = {k: l for (k, l) in frequencies if l > MIN_FREQ or k == OOV}
         frequencies[OOV] = sum(oov)
-        self.word2index = {seg: num for (num, seg) in enumerate(sorted(list(frequencies.keys())))}
-        markers = [START_SYMBOL, END_SYMBOL] + list(corpora.keys())
-        for m in sorted(markers):
-            self.word2index[m] = len(self.word2index)
+        markers = [END_SYMBOL, START_SYMBOL] + list(corpora.keys())
+        self.word2index = {seg: num for (num, seg) in enumerate(markers + sorted(list(frequencies.keys())))}
+        # for m in sorted(markers):
+        #    self.word2index[m] = len(self.word2index)
+        assert (self.word2index[END_SYMBOL] == 0)  # in embedding_layer, mask_true assumes padding=0
         self.index2word = {v: k for k, v in self.word2index.items()}
 
     def index(self, corpora):
@@ -72,9 +70,43 @@ class Dataset:
         sentence = re.sub('[^ a-zA-Z0-9.,:;!\?\'{}]', ' ', sentence.lower())
         return sentence.strip()
 
+    def build_embeddings(self, sentences, w2v_path):
+        word_dict = self.get_word_dict(sentences)
+        return self.get_w2v(word_dict, w2v_path)
+
+    def get_word_dict(self, sentences):
+        # create vocab of words
+        word_dict = {}
+        for sent in sentences:
+            for word in sent:
+                if word not in word_dict:
+                    word_dict[word] = ''
+        word_dict[self.word2index[START_SYMBOL]] = ''
+        word_dict[self.word2index[END_SYMBOL]] = ''
+        return word_dict
+
+    def get_w2v(self, word_dict, w2v_path):
+        # create word_vec with w2v vectors
+        word_vec = {}
+        with open(w2v_path, encoding="utf-8") as f:
+            for line in f:
+                word, vec = line.split(' ', 1)
+                if word in self.word2index:
+                    if self.word2index[word] in word_dict:
+                        word_vec[word] = np.fromstring(vec, sep=' ')
+                    else:
+                        print("Embedding not found for " + self.word2index[word])
+        print('Found %s(/%s) words with w2v vectors' % (len(word_vec), len(word_dict)))
+        return word_vec
+
+
+def decorate_file(file):
+    return '<{}>'.format(file)
+
 
 class BibleDataset(Dataset):
-    def __init__(self, files, base_url=URL_ROOT, suffix=CSV_EXT, test_split=0.1, validation_split=0.1):
+    def __init__(self, files, base_url=URL_ROOT, suffix=CSV_EXT, test_split=0.1, validation_split=0.1,
+                 v2w_path=None):
         super().__init__()
         corpora, index = self.parse_csv(base_url, files, suffix)
         self.corpora = self.index(corpora)
@@ -83,25 +115,27 @@ class BibleDataset(Dataset):
         self.max_sentence_length = max(sentence_lengths)
         self.style2index = {s: i for (i, s) in enumerate(corpora.keys())}
         self.index2style = {v: k for k, v in self.style2index.items()}
-        self.clusters = self.cluster(10)
+        if v2w_path is not None:
+            sentences = []
+            for file in files:
+                sentences += self.corpora[decorate_file(file)]
+            self.word_vec = self.build_embeddings(sentences, v2w_path)
         pass
 
     def parse_csv(self, base_url, files, suffix):
-        from spacy.lang.en import English
-        tokenizer = English().Defaults.create_tokenizer()
         corpora = {}
         for file in files:
             corpus = {}
             with open(get_file(file, base_url + file + suffix, cache_dir='/tmp/bible.cache/'), "rb") as webfile:
                 for idx, row in enumerate(csv.reader(codecs.iterdecode(webfile, 'utf-8'))):
                     if idx > 0:
-                        segs = [str(s).strip() for s in tokenizer(self.normalize(row[4]))
+                        segs = [str(s).strip() for s in word_tokenize(self.normalize(row[4]))
                                 if len(str(s).strip()) > 0]
 
                         if len(segs) > MAX_SENTENCE_LENGTH:
                             segs = segs[:MAX_SENTENCE_LENGTH]
                         corpus[tuple(int(v) for v in row[:-1])] = segs
-            corpora['<{}>'.format(file)] = corpus
+            corpora[decorate_file(file)] = corpus
 
         keysets = [set(ks.keys()) for ks in corpora.values()]
         intersection = [s for s in sorted(list(keysets[0].intersection(*keysets[1:])))
@@ -144,89 +178,48 @@ class BibleDataset(Dataset):
         return train, test, validation
 
     def pad_sentence(self, sentence, length):
-        """ sentence is a list . length is max length of sentence"""
-        return sentence + [self.word2index[END_SYMBOL]] * (length - len(sentence))
+        # note length can be small, creating truncation, len(sentence)=60 but length=15
+        return sentence[:length] + [self.word2index[END_SYMBOL]] * max(0, length - len(sentence))
 
     def recostruct_sentence(self, sentence):
         return ' '.join([self.index2word[seg] for seg in sentence])
 
-    def sample_batch(self, data, batch_size, max_len):
-        sample = random.sample(data, k=min(batch_size, len(data)))
-        return [self.pad_sentence(self.corpora[self.index2style[style]][sent], max_len)
-                for style, sent in sample], [style for style, _ in sample]
+    def create_sequences(self, file, batch, max_sent_len=None, one_hot=True):
+        X1, X2, y = list(), list(), list()
+        # walk through each sentence in batch
+        max_size = max_sent_len if max_sent_len else self.max_sentence_length + 2
+        for num in batch:
+            seq = [self.word2index[START_SYMBOL]] + self.corpora[file][num]
+            # split one sequence into multiple X,y pairs
+            # for i in range(1, len(seq)):
+            i = len(seq)
+            # split into input and output pair
+            in_seq, out_seq = seq[:], seq[1:]
+            # pad input sequence
 
+            in_seq = self.pad_sentence(in_seq, max_size)
+            out_seq = self.pad_sentence(out_seq, max_size)
 
+            # encode output sequence
+            if one_hot:
+                out_seq = to_categorical(out_seq, num_classes=len(self.word2index))
 
+            # print (len(in_seq),len(out_seq),out_seq.shape)
+            # store
+            X1.append(self.embeddings[file][num])
+            X2.append(in_seq)
+            y.append(out_seq)
+        if one_hot:
+            batch_y = np.array(y, dtype=np.int8)
+        else:
+            batch_y = np.array(y, dtype=np.int32)[:, :, np.newaxis]  # create last axis as 1
+        return [[np.array(X1), np.array(X2)], batch_y]
 
-
-
-    def enc_input(self, batch):
-        """ batch is a list of senteces(list of tokens)
-        will add <end> symbol to each of the sentences and return it as np.array of type int
-        """
-        return np.array([s + [self.word2index[END_SYMBOL]] for s in batch], int)
-
-    def dec_input(self, batch, styles):
-        return np.array([[self.word2index[style]] + s for (s, style) in zip(batch, styles)], int)
-
-    def gen_pair(self, data_range, batch_size=64):
-        cluster, data = self.__generate_data__(data_range)
-        max_len = self.clusters[cluster][0]
+    def data_generator(self, file, data, batch_size, max_sent_len=None, one_hot=True):
+        """ max_sent_len should be below model allowed size."""
         while True:
-            if len(data)<batch_size:
-                raise ValueError('fbatch size {batch_size}smaller than len of data{len(data}')
-
-            same_ids = random.sample(data, k=batch_size//2) # style,sent (the first ignored)
-            not_same_batch = (batch_size+1)//2
-
-            not_same_ids = random.sample(data, 2*not_same_batch)  # style,sent (the first ignored)
-
-            # half the pair same id, different styles
-            # other half, different ids, random styles?
-            batch0 = self.enc_input([self.pad_sentence(self.corpora['<bbe>'][sent], max_len) for _, sent in sample_ids])
-            batch1 = self.enc_input([self.pad_sentence(self.corpora['<ylt>'][sent], max_len) for _, sent in sample_ids])
-
-            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-            enc_input = self.enc_input(batch)
-            yield [enc_input, dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
-
-
-
-    def gen_g(self, data_range, batch_size=64, noise_std=0.0):
-        """noise_std ignored for now. for compatability with num2word dataset
-        """
-        cluster, data = self.__generate_data__(data_range)
-        while True:
-            batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
-            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-            enc_input = self.enc_input(batch)
-            yield [enc_input, dec_input], to_categorical(enc_input, len(self.word2index)).astype(int)
-
-    def gen_d(self, data_range, batch_size=64 , noise_std=0.0):
-        cluster, data = self.__generate_data__(data_range)
-        while True:
-            batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
-            #Only support 2 styles (0 or 1)
-            yield self.enc_input(batch), styles#to_categorical(styles, len(self.corpora)).astype(int)
-
-    def gen_adv(self, data_range, batch_size=64,style_noise=0.0, noise_std=0.0):
-        cluster, data = self.__generate_data__(data_range)
-        while True:
-            batch, styles = self.sample_batch(data, batch_size=batch_size, max_len=self.clusters[cluster][0])
-            enc_input = self.enc_input(batch)
-            dec_input = self.dec_input(batch, [self.index2style[style] for style in styles])
-            yield [enc_input, dec_input], \
-                  [to_categorical(enc_input, len(self.word2index)).astype(int),
-                   np.array(styles) # to_categorical(styles, len(self.corpora)).astype(int)
-                   ]
-
-    def __generate_data__(self, data_range):
-        cluster = np.random.choice(list(self.clusters.keys()), 1,
-                                   p=[len(v[1]) / sum([len(v[1]) for v in self.clusters.values()])
-                                      for v in self.clusters.values()])[0]
-        data = list(set(product(self.index2style.keys(), range(*data_range))).intersection(
-            self.clusters[cluster][1]))
-        return cluster, data
+            batch = random.sample(range(*data), k=min(batch_size, len(range(*data))))
+            yield self.create_sequences(file, batch, max_sent_len, one_hot)
 
     def normalize(self, sentence):
         sentence = super().normalize(sentence)
@@ -249,15 +242,3 @@ class BibleDataset(Dataset):
                     clusters.items()}
 
         return clusters
-
-
-
-def test_bible_dataset():
-    ds = dataset = BibleDataset(["ylt", "bbe"],base_url=URL_ROOT, suffix=CSV_EXT)
-
-
-
-if __name__ == '__main__':
-    pass
-    test_bible_dataset()
-

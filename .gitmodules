@@ -1,3 +1,6 @@
 [submodule "InferSent"]
 	path = InferSent
 	url = https://github.com/delkind/InferSent.git
+[submodule "keras-tcn"]
+	path = keras-tcn
+	url = https://github.com/philipperemy/keras-tcn.git
