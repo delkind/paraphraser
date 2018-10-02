@@ -26,7 +26,7 @@ to activate virtual environment:<br>
 1. To emit TCNN model predictions file please run<br>
 `./uni_emb_tcnn_pred.sh`
 
-###Re-building experiment models and embeddings
+### Re-building experiment models and embeddings
 
 The instructions above assume usage of pre-trained models and pre-built embeddings in order to produce the predictions 
 and evaluate the experiment results. Below we provide the instructions for re-building and re-training models and 
