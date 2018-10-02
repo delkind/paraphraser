@@ -8,6 +8,9 @@ The sources are intended to allow reproducing the experiments described in the p
 `cd paraphraser`
 1. Run setup script<br> 
 `./setup.sh`
+1. Please note that before executing any scripts as per instructions below, the following command should be invoked
+to activate virtual environment:<br>
+`source ./.env/bin/activate`
  
 ## Universal embeddings experiment
  
