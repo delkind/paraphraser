@@ -14,7 +14,7 @@ to activate virtual environment:<br>
  
 ## Pre-trained universal embeddings (InferSent) experiment
  
-### Creating the paraphrases of the bible BBE dataset
+### Creating the paraphrases of the bible BBE corpus in the style of the YLT corpus
 1. Download the pre-trained TCNN and LSTM based decoders and pre-built universal embeddings for Bible dataset by running<br>
 `./dl_uni_emb_files.sh`
 1. To calculate BLEU score for both models for _n_ random samples please run<br>
