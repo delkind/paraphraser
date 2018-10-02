@@ -12,7 +12,7 @@ The sources are intended to allow reproducing the experiments described in the p
 to activate virtual environment:<br>
 `source ./.env/bin/activate`
  
-## Universal embeddings experiment
+## Pre-trained universal embeddings (InferSent) experiment
  
 ### Creating the paraphrases of the bible BBE dataset
 1. Download the pre-trained TCNN and LSTM based decoders and pre-built universal embeddings for Bible dataset by running<br>
