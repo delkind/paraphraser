@@ -7,7 +7,7 @@ oauth2client
 spacy
 numpy
 matplotlib
-tensorflow
+tensorflow <= 1.9.0
 keras
 spacy
 scikit-learn
