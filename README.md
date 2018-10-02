@@ -17,14 +17,14 @@ to activate virtual environment:<br>
 ### Creating the paraphrases of the bible BBE dataset
 1. Download the pre-trained TCNN and LSTM based decoders and pre-built universal embeddings for Bible dataset by running<br>
 `./dl_uni_emb_files.sh`
-1. To produce the original sentences (GOLD) file please run<br>
-`./uni_emb_create_gold.sh`
-1. To produce LSTM model predictions file please run<br>
-`./uni_emb_lstm_pred.sh`
-1. To produce TCNN model predictions file please run<br>
-`./uni_emb_tcnn_pred.sh`
 1. To calculate BLEU score for both models for _n_ random samples please run<br>
 `./uni_emb_calc_bleu.sh --samples <n>`
+1. To emit the original sentences (GOLD) file please run<br>
+`./uni_emb_create_gold.sh`
+1. To emit LSTM model predictions file please run<br>
+`./uni_emb_lstm_pred.sh`
+1. To emit TCNN model predictions file please run<br>
+`./uni_emb_tcnn_pred.sh`
 
 ###Re-building experiment models and embeddings
 
