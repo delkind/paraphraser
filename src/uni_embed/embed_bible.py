@@ -43,16 +43,20 @@ class BibleCorpora:
 
 
 def create_bible_embeddings(path):
+    print("Creating InferSent embeddings for bible corpora...")
     infersent = InferSent({'bsize': 64, 'word_emb_dim': 300, 'enc_lstm_dim': 2048,
                            'pool_type': 'max', 'dpout_model': 0.0, 'version': 2})
     infersent.load_state_dict(torch.load('InferSent/encoder/infersent2.pkl'))
     infersent.set_w2v_path('InferSent/dataset/fastText/crawl-300d-2M.vec')
 
+    print("Loading corpora...")
     dataset = BibleCorpora(["bbe", "ylt"], URL_ROOT, CSV_EXT)
     infersent.build_vocab(dataset.corpora['<bbe>'] + dataset.corpora['<ylt>'], tokenize=True)
+    print("Creating embeddings for BBE corpus...")
     encoded_bbe = infersent.encode(dataset.corpora['<bbe>'], tokenize=True)
+    print("Creating embeddings for YLT corpus...")
     encoded_ylt = infersent.encode(dataset.corpora['<ylt>'], tokenize=True)
-
+    print("Saving embeddings to {}...".format(path))
     with h5py.File(path, "w") as ds:
         ds.create_dataset("bbe", data=encoded_bbe)
         ds.create_dataset("ylt", data=encoded_ylt)

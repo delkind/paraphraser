@@ -73,15 +73,13 @@ def load_embeddings(emb_path, files):
         return {decorate_file(file): np.array(ds[file]) for file in files if file in ds}
 
 
-def define_model(dataset):
+def tcnn_model(dataset):
     semantic_dropout = 0.1
     lstm_in_dropout = 0.1
     final_dropout = 0.1
 
     # Sentence Embeddings
-    max_length = dataset.max_sentence_length + 2
     vocab_size = len(dataset.word2index)
-    print('max_length', max_length, 'vocab_size', vocab_size)
 
     inputs1 = Input(shape=(4096,), name='f_input')  # means BATCHx4096
     fe1 = Dropout(0.25, name='fe1')(inputs1)
@@ -113,7 +111,40 @@ def define_model(dataset):
     return model
 
 
-def train_model(dataset, embeddings):
+def lstm_model(dataset):
+    semantic_dropout = 0.1  # 0.5 source
+    final_dropout = 0.1
+
+    vocab_size = len(dataset.word2index)
+
+    inputs1 = Input(shape=(4096,), name='f_input')  # means BATCHx4096
+    fe1 = Dropout(semantic_dropout, name='fe1')(inputs1)
+    fe2 = Dense(BEFORE_CONCAT, name='fe2', activation='relu')(fe1)
+    fe2 = BatchNormalization(axis=-1)(fe2)
+
+    # sequence model.
+    # Note that shape is of the sample (ignoring batch d).  (50, 4096) (50, 62) (50, 62, 3626)
+    inputs2 = Input(shape=(None,), name='s_input')  # TPDP: remove dim here!!!
+    se1 = Embedding(vocab_size, EMBEDDING_D, mask_zero=True, name='se1')(inputs2)  # why mask_Zero=True
+    # se2 = Dropout(lstm_in_dropout,name='se2')(se1)
+    for i in range(3):
+        se1 = BatchNormalization(axis=-1, name=f'se.b{i}')(se1)
+        se1 = LSTM(LSTM_HIDDEN_DIMS, name=f'se3.{i}', return_sequences=True)(se1)
+    se3 = TimeDistributed(Dense(BEFORE_CONCAT, name='se4'))(se1)
+    # decoder model
+    decoder1 = add([fe2, se3], name='concat/add')
+    decoder2 = Dense(BEFORE_SOFTMAX_D, activation='relu', name='decoder2')(decoder1)
+    decoder2 = Dropout(final_dropout, name='final_dropout')(decoder2)
+    outputs = Dense(vocab_size, activation='softmax', name='outputs')(decoder2)
+    # outputs = decoder2
+
+    # tie it together [image, seq] [wordo
+    model = Model(inputs=[inputs1, inputs2], outputs=outputs)
+    model.summary()
+    return model
+
+
+def train_model(dataset, embeddings, define_model, epochs, output_path):
     generator = DataGenerator(dataset, embeddings)
     model = define_model(dataset)
 
@@ -127,13 +158,14 @@ def train_model(dataset, embeddings):
                                                   save_best_only=True, save_weights_only=False)
     tb_callback = keras.callbacks.TensorBoard(log_dir='/tmp/Graph', histogram_freq=0, write_graph=True,
                                               write_images=True)
-    for i in range(1000):
+    for i in range(epochs):
         model.fit_generator(train_generator,
                             steps_per_epoch=int(dataset.train[1] / BATCH_SIZE),
-                            epochs=100,
+                            epochs=1,
                             validation_data=val_generator,
                             validation_steps=2,
                             verbose=True)
+        keras.models.save_model(model, output_path)
 
 
 def test(model, dataset, embeddings, sent=100, jump=1):
@@ -229,31 +261,3 @@ def save_response_content(response, destination, chunk_size=32768):
 def dload_embeddings(path, files):
     download_file_from_google_drive(EMBEDDINGS_GDRIVE_ID, path)
     return load_embeddings(path, files)
-
-
-def calculate_bleu_score(lstm_path, tcnn_path, emb_path, samples):
-    model = keras.models.load_model(lstm_path)
-    dataset = BibleDataset(["bbe", "ylt"])
-    embeddings = load_embeddings(emb_path, ["bbe", "ylt"])
-    rng = range(len(dataset.corpora['<ylt>']))
-    if samples > 0:
-        rng = random.sample(list(rng), samples)
-    h = emit_predictions(model, dataset, embeddings, rng)
-    r = [[s] for s in emit_reference(dataset, rng)]
-    from nltk.translate.bleu_score import corpus_bleu
-    score1 = corpus_bleu(r, h, (1, 0, 0, 0))
-    score2 = corpus_bleu(r, h, (0.5, 0.5, 0, 0))
-    score3 = corpus_bleu(r, h, (0.33, 0.33, 0.33, 0))
-    score4 = corpus_bleu(r, h)
-    print("LSTM: {}".format([score1, score2, score3, score4]))
-    model = keras.models.load_model(tcnn_path)
-    h = emit_predictions(model, dataset, embeddings, rng)
-    score1 = corpus_bleu(r, h, (1, 0, 0, 0))
-    score2 = corpus_bleu(r, h, (0.5, 0.5, 0, 0))
-    score3 = corpus_bleu(r, h, (0.33, 0.33, 0.33, 0))
-    score4 = corpus_bleu(r, h)
-    print("TCNN: {}".format([score1, score2, score3, score4]))
-
-
-if __name__ == '__main__':
-    calculate_bleu_score("./exp/uni_embed/lstm/model.h5", "./exp/uni_embed/tcnn/model.h5", "/tmp/emb.h5", 200)
