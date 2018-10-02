@@ -36,7 +36,7 @@ embeddings instead of using the pre-built ones.
 1. Setup InferSent data files by running<br>
 `./setup_infersent.sh`
 1. Install PyTorch - follow the instructions [here](https://pytorch.org/get-started/locally/). 
-We haven't provided a script since the installation differs substantially by platform). 
+We haven't provided a script since the installation differs substantially depending on the platform. 
 1. Create embeddings from the YLT and BBE bible corpora by running<br>
 `./create_uni_emb.sh`
 1. Verify that `exp/uni_embed/embeddings.h5` file is created
